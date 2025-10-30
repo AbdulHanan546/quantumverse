@@ -1,0 +1,54 @@
+{
+  "collectionName": "components_slide_mcqs",
+  "info": {
+    "displayName": "MCQ",
+    "icon": "bulletList"
+  },
+  "options": {},
+  "attributes": {
+    "question": {
+      "type": "text",
+      "required": true
+    },
+    "a": {
+      "type": "text",
+      "required": true
+    },
+    "b": {
+      "type": "string",
+      "required": true
+    },
+    "c": {
+      "type": "string",
+      "required": true
+    },
+    "d": {
+      "type": "text",
+      "required": true
+    },
+    "correctOption": {
+      "type": "enumeration",
+      "required": true,
+      "enum": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    },
+    "duration": {
+      "type": "integer",
+      "required": false
+    },
+    "thumbnail": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": [
+        "images",
+        "videos"
+      ]
+    }
+  },
+  "config": {}
+}
