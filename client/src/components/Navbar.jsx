@@ -12,7 +12,7 @@ export default function Navbar() {
             <span className="text-green-400 font-bold">Q</span>
           </div>
           <div className="text-lg font-semibold tracking-tight">
-            Quantumverse <span className="text-green-400">Auth</span>
+            Quantumverse <span className="text-green-400"></span>
           </div>
         </div>
 
