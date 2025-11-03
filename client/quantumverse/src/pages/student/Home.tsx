@@ -1,83 +1,104 @@
-import React from "react";
-import type { ReactNode } from "react";
-import { useAuth } from "../../context/AuthContext";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { useAuth } from "../../context/AuthContext";
 
-export default function StudentHome() {
+interface StudentHomeProps {
+  onSelectTopic: (slug: string) => void;
+}
+
+interface Topic {
+  id: number;
+  documentId: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export default function StudentHome({ onSelectTopic }: StudentHomeProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const topics = [
-    { title: "Quantum Entanglement", path: "/student/topic" },
-  ];
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadTopics() {
+      try {
+        setLoading(true);
+        const { data } = await axios.get(
+          "https://smart-dance-067fc7b146.strapiapp.com/api/topics"
+        );
+        setTopics(data?.data || []);
+      } catch (err) {
+        console.error("Failed to fetch topics:", err);
+        setError("Unable to load topics from CMS.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadTopics();
+  }, []);
+
+  const handleClick = async (documentId: string) => {
+    await onSelectTopic(documentId);
+    navigate(`/topic/${documentId}`);
+  };
+
+  if (loading) {
+    return (
+      <main className="mx-auto max-w-7xl px-4 py-8">
+        <p className="text-slate-400 animate-pulse">Loading topics...</p>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="mx-auto max-w-7xl px-4 py-8">
+        <p className="text-red-400">{error}</p>
+      </main>
+    );
+  }
+
+  if (topics.length === 0) {
+    return (
+      <main className="mx-auto max-w-7xl px-4 py-8">
+        <p className="text-slate-400">
+          No topics available right now. Please check back later.
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 space-y-8">
-      <Hero title="Student Dashboard" subtitle="Explore your profile and topics." />
+      <h1 className="text-3xl font-bold mb-4">
+        Welcome{user?.email ? `, ${user.email}` : ""}!
+      </h1>
+      <p className="text-slate-400 mb-6">
+        Choose a topic below to start your quantum learning journey.
+      </p>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card title="Your Profile">
-          <ul className="space-y-2 text-slate-300">
-            <li>
-              <span className="text-slate-400">Email:</span> {user?.email}
-            </li>
-            <li>
-              <span className="text-slate-400">Role:</span>{" "}
-              <span className="badge capitalize">{user?.role}</span>
-            </li>
-            <li>
-              <span className="text-slate-400">ID:</span> {user?.id}
-            </li>
-          </ul>
-        </Card>
-
-        <Card title="Topics">
-          <div className="flex flex-col gap-3">
-            {topics.map((t) => (
-              <button
-                key={t.title}
-                className="btn-primary w-full text-left"
-                onClick={() => navigate(t.path)}
-              >
-                {t.title}
-              </button>
-            ))}
-          </div>
-        </Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {topics.map((topic) => (
+          <button
+            key={topic.documentId}
+            onClick={() => handleClick(topic.documentId)}
+            className="rounded-xl border border-green-400/30 bg-gray-900/40 p-6 hover:bg-green-500/10 transition flex flex-col items-start text-left"
+          >
+            <h3 className="text-xl font-semibold text-green-400">
+              {topic.name}
+            </h3>
+            <p className="text-slate-400 mt-2 line-clamp-2">
+              {topic.description || "Click to explore this topic."}
+            </p>
+          </button>
+        ))}
       </div>
     </main>
-  );
-}
-
-// Hero component
-interface HeroProps {
-  title: string;
-  subtitle: string;
-}
-
-function Hero({ title, subtitle }: HeroProps) {
-  return (
-    <section className="relative overflow-hidden rounded-2xl border border-green-400/20 p-8">
-      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(600px_200px_at_20%_10%,rgba(16,185,129,0.2),transparent)]" />
-      <h1 className="relative z-10 text-3xl md:text-4xl font-extrabold">{title}</h1>
-      <p className="relative z-10 mt-3 text-slate-300/80">{subtitle}</p>
-    </section>
-  );
-}
-
-// Card component
-interface CardProps {
-  title: string;
-  children: ReactNode;
-}
-
-function Card({ title, children }: CardProps) {
-  return (
-    <div className="card rounded-2xl p-6 bg-gray-900/50 backdrop-blur-md shadow-lg">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold">{title}</h3>
-      </div>
-      {children}
-    </div>
   );
 }
