@@ -4,7 +4,15 @@ const BASE_URL = "https://smart-dance-067fc7b146.strapiapp.com/api";
 
 // Fetch all topics
 export async function fetchAllTopics() {
-  const { data } = await axios.get(`${BASE_URL}/topics`);
+  const { data } = await axios.get(`${BASE_URL}/topics/populate=*`);
+  return data.data;
+}
+// Fetch all chapters with their topics and thumbnails
+export async function fetchAllChapters() {
+  const { data } = await axios.get(
+    `${BASE_URL}/chapters?populate=topics,thumbnail`
+  );
+
   return data.data;
 }
 

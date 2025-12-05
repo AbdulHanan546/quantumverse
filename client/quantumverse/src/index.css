@@ -4,6 +4,7 @@ body {
   margin: 0;
   background: #000;
   color: #fff;
-  overflow: hidden;
+  overflow-y: auto; /* allow vertical scrolling */
+
   font-family: 'Inter', sans-serif;
 }

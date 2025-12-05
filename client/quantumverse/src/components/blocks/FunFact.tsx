@@ -1,17 +1,20 @@
 import { motion } from "framer-motion";
 
+// Character type from Strapi
 interface Character {
   name: string;
-  image?: string;
-  orientation?: "left" | "right" | "center";
+  description?: string;
+  expressions?: { image?: string; emotionType?: string }[]; // from Emotion component
+  image?: string; // frontend-only, mapped from expressions
 }
 
 interface FunFactProps {
   fact: string;
-  illustration?: string;
-  character: Character;
-  characterEmotion?: "happy" | "surprised" | "curious" | "neutral";
-  characterDialogue?: string;
+  illustration?: string; // media URL from Strapi
+  character: Character; // must come fully populated from Strapi
+  characterOrientation?: "left" | "right" | "center"; // frontend-only
+  characterEmotion?: "happy" | "surprised" | "curious" | "neutral"; // optional
+  characterDialogue?: string; // optional
   onNext?: () => void;
 }
 
@@ -19,14 +22,20 @@ export default function FunFact({
   fact,
   illustration,
   character,
+  characterOrientation = "right",
   characterEmotion,
   characterDialogue,
   onNext,
 }: FunFactProps) {
-  const orientation = character.orientation || "right";
+  // Map character image from expressions if image not already provided
+  const characterImage =
+   // character.image ||
+    character.expressions?.find((exp) => exp.emotionType === characterEmotion)
+      ?.image ||
+    character.expressions?.[0]?.image;
 
   const getCharacterPosition = () => {
-    switch (orientation) {
+    switch (characterOrientation) {
       case "left":
         return "bottom-0 left-10";
       case "center":
@@ -50,7 +59,7 @@ export default function FunFact({
         transition={{ repeat: Infinity, duration: 8 }}
       />
 
-      {/* Illustration as part of dialogue */}
+      {/* Illustration */}
       {illustration && (
         <motion.img
           src={illustration}
@@ -62,22 +71,18 @@ export default function FunFact({
         />
       )}
 
-      {/* Dialogue / Fact Box */}
+      {/* Fact Box */}
       <motion.div
         className="relative z-10 max-w-3xl bg-black/50 backdrop-blur-md rounded-2xl p-6 flex flex-col items-center shadow-lg"
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        {/* Fun Fact Heading */}
         <h3 className="text-2xl font-bold text-yellow-400 mb-3">Fun Fact 🌟</h3>
 
         {characterDialogue && (
           <h4 className="text-lg text-purple-300 font-semibold mb-2">
-            {character.name}
-            {characterEmotion && (
-              <span className="ml-2 text-sm text-gray-400"></span>
-            )}
+            {character.name} {characterEmotion && `(${characterEmotion})`}
           </h4>
         )}
 
@@ -85,10 +90,10 @@ export default function FunFact({
       </motion.div>
 
       {/* Character Image */}
-      {character.image && (
+      {characterImage && (
         <motion.img
-          key={character.image}
-          src={character.image}
+          key={characterImage}
+          src={characterImage}
           alt={character.name}
           className={`absolute w-48 h-auto object-contain ${getCharacterPosition()} z-20`}
           initial={{ opacity: 0, y: 30 }}

@@ -2,15 +2,22 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 
+interface CharacterExpression {
+  image?: string;
+  emotionType?: string;
+}
+
+interface Character {
+  name: string;
+  expressions?: CharacterExpression[];
+}
+
 interface Scene {
   dialogue: string;
-  character: {
-    name: string;
-    image?: string;
-  };
-  background: string;
-  emotion?: string;
+  character?: Character;  // Resolved from Strapi
+  emotion?: string;       // Scene emotion
   orientation?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  background?: string;    // Media URL
 }
 
 interface StoryProps {
@@ -28,27 +35,29 @@ export default function Story({
 }: StoryProps) {
   const [index, setIndex] = useState(0);
   const current = scenes[index];
+  const [canTap, setCanTap] = useState(false);
 
- const [canTap, setCanTap] = useState(false);
-
-const handleAnimationComplete = () => {
-  // Only allow tap after background, character, and dialogue animations finish
-  setCanTap(true);
-  enableGlobalTap?.();
-};
-
-const handleNext = () => {
-  if (!canTap) return; // ignore early taps
-
-  if (index < scenes.length - 1) {
-    setIndex(i => i + 1);
-    setCanTap(false); // reset for next scene
+  useEffect(() => {
     disableGlobalTap?.();
-  } else {
-    onNext?.();
-  }
-};
+    return () => enableGlobalTap?.();
+  }, []);
 
+  const handleAnimationComplete = () => {
+    setCanTap(true);
+    enableGlobalTap?.();
+  };
+
+  const handleNext = () => {
+    if (!canTap) return; // ignore early taps
+
+    if (index < scenes.length - 1) {
+      setIndex((i) => i + 1);
+      setCanTap(false); // reset for next scene
+      disableGlobalTap?.();
+    } else {
+      onNext?.();
+    }
+  };
 
   const getCharacterPosition = (orientation?: string) => {
     switch (orientation) {
@@ -64,6 +73,17 @@ const handleNext = () => {
     }
   };
 
+  // Pick character image based on scene emotion or fallback to first expression
+  const getCharacterImage = (char?: Character, emotion?: string) => {
+    if (!char?.expressions?.length) return undefined;
+    return (
+      char.expressions.find((exp) => exp.emotionType === emotion)?.image ||
+      char.expressions[0].image
+    );
+  };
+
+  const characterImage = getCharacterImage(current.character, current.emotion);
+
   return (
     <div
       className="relative w-full h-screen overflow-hidden text-white select-none"
@@ -72,26 +92,28 @@ const handleNext = () => {
     >
       {/* Background */}
       <AnimatePresence mode="wait">
-        <motion.div
-          key={current.background}
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${current.background})` }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.8 }}
-        />
+        {current.background && (
+          <motion.div
+            key={current.background + index}
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${current.background})` }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+          />
+        )}
       </AnimatePresence>
 
       {/* Overlay gradient */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/30" />
 
       {/* Character */}
-      {current.character?.image && (
+      {characterImage && (
         <motion.img
-          key={current.character.image + index}
-          src={current.character.image}
-          alt={current.character.name}
+          key={characterImage + index}
+          src={characterImage}
+          alt={current.character?.name || "Character"}
           className={`absolute w-64 h-auto object-contain ${getCharacterPosition(
             current.orientation
           )}`}
@@ -104,22 +126,19 @@ const handleNext = () => {
 
       {/* Dialogue box */}
       <div className="absolute bottom-10 w-full px-8 flex justify-center">
-       <motion.div
-  key={index}
-  className="bg-black/40 backdrop-blur-md rounded-2xl p-6 max-w-3xl border border-white/10 shadow-lg"
-  initial={{ opacity: 0, y: 40 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: -40 }}
-  transition={{ duration: 0.6 }}
-  onAnimationComplete={handleAnimationComplete} // <-- here
->
-
+        <motion.div
+          key={index}
+          className="bg-black/40 backdrop-blur-md rounded-2xl p-6 max-w-3xl border border-white/10 shadow-lg"
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -40 }}
+          transition={{ duration: 0.6 }}
+          onAnimationComplete={handleAnimationComplete}
+        >
           <h4 className="text-xl font-semibold text-purple-300 mb-2">
-            {current.character.name}
+            {current.character?.name}
             {current.emotion && (
-              <span className="ml-2 text-sm text-gray-400">
-               
-              </span>
+              <span className="ml-2 text-sm text-gray-400">({current.emotion})</span>
             )}
           </h4>
           <div className="text-lg leading-relaxed text-gray-200">

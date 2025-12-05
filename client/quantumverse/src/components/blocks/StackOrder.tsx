@@ -10,10 +10,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 interface Block {
-  id: string;
+  id?: string; // optional, generate if missing
   order: number;
   statement: string;
-  illustration?: string;
+  illustration?: string; // media URL
 }
 
 interface StackOrderProps {
@@ -25,16 +25,15 @@ interface StackOrderProps {
   enableGlobalTap?: () => void;
 }
 
-function SortableItem({ id, statement, illustration }: Block) {
+function SortableItem({ id, statement, illustration }: Block & { id: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
-  // Springy animation for drag-and-drop
   const style = {
-  transform: CSS.Transform.toString(transform),
-  transition, // <-- just use it directly
-  zIndex: isDragging ? 50 : "auto",
-};
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : "auto",
+  };
 
   return (
     <motion.div
@@ -47,7 +46,7 @@ function SortableItem({ id, statement, illustration }: Block) {
       exit={{ scale: 0.95, opacity: 0 }}
       whileHover={{ scale: 1.03 }}
       whileTap={{ scale: 1.05 }}
-      layout // <-- important for smooth reordering animation
+      layout
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
       className="flex items-center gap-4 p-4 bg-[#1a1a2a] border border-[#2b2b3b] rounded-xl cursor-grab active:cursor-grabbing shadow-md"
     >
@@ -67,14 +66,15 @@ export default function StackOrder({
   disableGlobalTap,
   enableGlobalTap,
 }: StackOrderProps) {
-  const [items, setItems] = useState(() =>
-    blocks
-      .slice()
-      .sort((a, b) => a.order - b.order)
-      .map((b, idx) => ({
-        ...b,
-        id: b.id || `block-${idx}-${Math.random().toString(36).slice(2, 7)}`,
-      }))
+  const [items, setItems] = useState(
+    () =>
+      blocks
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((b, idx) => ({
+          ...b,
+          id: b.id || `block-${idx}-${Math.random().toString(36).slice(2, 7)}`,
+        }))
   );
   const [submitted, setSubmitted] = useState(false);
   const [showTapHint, setShowTapHint] = useState(false);
@@ -135,7 +135,7 @@ export default function StackOrder({
       <div className="w-full max-w-xl space-y-4 z-10">
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
-            items={items.map((i) => i.id)}
+            items={items.map((i) => i.id!)}
             strategy={verticalListSortingStrategy}
           >
             <AnimatePresence>

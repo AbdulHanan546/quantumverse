@@ -1,36 +1,35 @@
-import React from 'react';
-import { useAuth } from '../context/AuthContext';
+import React from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+
+  // Generate initials for avatar
+  const initials = user?.email
+    ? user.email
+        .split("@")[0]
+        .split(".")
+        .map((n) => n[0].toUpperCase())
+        .join("")
+    : "U";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/60 backdrop-blur supports-[backdrop-filter]:bg-black/30">
-      <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 grid place-items-center rounded-lg bg-green-500/15 border border-green-400/30 shadow-[0_0_24px_rgba(34,197,94,0.35)]">
-            <span className="text-green-400 font-bold">Q</span>
-          </div>
-          <div className="text-lg font-semibold tracking-tight">
-            Quantumverse <span className="text-green-400"></span>
-          </div>
-        </div>
+    <nav className="w-full bg-gray-900/80 backdrop-blur-md px-6 py-4 flex justify-between items-center">
+      <Link to="/" className="text-2xl font-bold text-green-400">
+        Quantum Verse
+      </Link>
 
-        <div className="flex items-center gap-3">
-          {user && (
-            <>
-              <span className="hidden sm:inline text-sm text-slate-300/80">{user.email}</span>
-              <span className="badge capitalize">{user.role}</span>
-            </>
-          )}
-          <button
-            onClick={logout}
-            className="btn-ghost hover:border-green-400/40 hover:text-green-300"
-          >
-            Logout
-          </button>
+      {user && (
+        <div className="flex items-center space-x-3">
+          {/* Avatar */}
+          <div className="w-10 h-10 rounded-full bg-green-400 flex items-center justify-center text-black font-bold">
+            {initials}
+          </div>
+          {/* User Name/Email */}
+          <span className="text-gray-200 text-sm font-medium">{user.email}</span>
         </div>
-      </div>
-    </header>
+      )}
+    </nav>
   );
 }

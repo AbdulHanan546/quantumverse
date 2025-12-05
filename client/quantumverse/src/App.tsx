@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import StudentHome from "./pages/student/Home";
+import ChapterTopics from "./pages/student/ChapterTopic";
 import Navbar from "./components/Navbar";
 import TopicRenderer from "./components/TopicRenderer";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -29,19 +30,31 @@ export default function App() {
           <Navbar />
 
           <Routes>
+
             {/* Auth Pages */}
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
 
-            {/* ✅ Protected Student Dashboard */}
+            {/* Student Home → CHAPTER LIST */}
             <Route
               path="/student"
               element={
                 <ProtectedRoute roles={["student", "admin"]}>
-                  <StudentHome onSelectTopic={handleTopicSelect} />
+                  <StudentHome />
                 </ProtectedRoute>
               }
             />
+
+            {/* NEW: Chapter → Topic List */}
+            <Route
+  path="/chapter/:id"
+  element={
+    <ProtectedRoute roles={["student", "admin"]}>
+      <ChapterTopics onSelectTopic={handleTopicSelect} />
+    </ProtectedRoute>
+  }
+/>
+
 
             {/* Topic Renderer */}
             <Route
@@ -57,9 +70,10 @@ export default function App() {
               }
             />
 
-            {/* ✅ Default route → Sign In */}
+            {/* Default Routes */}
             <Route path="/" element={<SignIn />} />
             <Route path="*" element={<SignIn />} />
+
           </Routes>
         </div>
       </AuthProvider>

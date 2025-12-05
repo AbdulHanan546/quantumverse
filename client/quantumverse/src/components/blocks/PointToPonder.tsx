@@ -1,23 +1,36 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
+// Character type from Strapi
 interface Character {
   name: string;
-  image?: string;
-  orientation?: "left" | "right" | "center";
+  expressions?: { image?: string; emotionType?: string }[]; // from Emotion component
+  image?: string; // frontend-only, mapped from expressions
 }
 
 interface PointToPonderProps {
   point: string;
   character: Character;
+  characterOrientation?: "left" | "right" | "center"; // frontend-only
   characterEmotion?: "thinking" | "curious" | "sad" | "neutral" | "happy";
   onNext?: () => void;
 }
 
-export default function PointToPonder({ point, character, characterEmotion, onNext }: PointToPonderProps) {
-  const orientation = character.orientation || "right";
+export default function PointToPonder({
+  point,
+  character,
+  characterOrientation = "right",
+  characterEmotion,
+  onNext,
+}: PointToPonderProps) {
+  // Map character image from expressions if image not already provided
+  const characterImage =
+    character.image ||
+    character.expressions?.find((exp) => exp.emotionType === characterEmotion)
+      ?.image ||
+    character.expressions?.[0]?.image;
 
   const getCharacterPosition = () => {
-    switch (orientation) {
+    switch (characterOrientation) {
       case "left":
         return "bottom-0 left-10";
       case "center":
@@ -42,10 +55,10 @@ export default function PointToPonder({ point, character, characterEmotion, onNe
       />
 
       {/* Character Image */}
-      {character.image && (
+      {characterImage && (
         <motion.img
-          key={character.image}
-          src={character.image}
+          key={characterImage}
+          src={characterImage}
           alt={character.name}
           className={`absolute w-72 h-auto object-contain ${getCharacterPosition()}`}
           initial={{ opacity: 0, y: 40 }}
@@ -61,15 +74,11 @@ export default function PointToPonder({ point, character, characterEmotion, onNe
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        {/* Heading */}
         <h3 className="text-2xl font-bold text-yellow-400 mb-3">Point to Ponder 💡</h3>
 
         {/* Character Name + Emotion */}
         <h4 className="text-lg text-purple-300 font-semibold mb-2">
-          {character.name}
-          {characterEmotion && (
-            <span className="ml-2 text-sm text-gray-400"></span>
-          )}
+          {character.name} {characterEmotion && `(${characterEmotion})`}
         </h4>
 
         {/* Point Text */}
