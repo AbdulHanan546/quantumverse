@@ -30,9 +30,9 @@ export default function FunFact({
   // Map character image from expressions if image not already provided
   const characterImage =
    // character.image ||
-    character.expressions?.find((exp) => exp.emotionType === characterEmotion)
+    character?.expressions?.find((exp) => exp?.emotionType === characterEmotion)
       ?.image ||
-    character.expressions?.[0]?.image;
+    character?.expressions?.[0]?.image;
 
   const getCharacterPosition = () => {
     switch (characterOrientation) {
@@ -82,7 +82,7 @@ export default function FunFact({
 
         {characterDialogue && (
           <h4 className="text-lg text-purple-300 font-semibold mb-2">
-            {character.name} {characterEmotion && `(${characterEmotion})`}
+            {character?.name} {characterEmotion && `(${characterEmotion})`}
           </h4>
         )}
 
@@ -94,7 +94,7 @@ export default function FunFact({
         <motion.img
           key={characterImage}
           src={characterImage}
-          alt={character.name}
+          alt={character?.name}
           className={`absolute w-48 h-auto object-contain ${getCharacterPosition()} z-20`}
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}

@@ -24,10 +24,10 @@ export default function PointToPonder({
 }: PointToPonderProps) {
   // Map character image from expressions if image not already provided
   const characterImage =
-    character.image ||
-    character.expressions?.find((exp) => exp.emotionType === characterEmotion)
+    character?.image ||
+    character?.expressions?.find((exp) => exp?.emotionType === characterEmotion)
       ?.image ||
-    character.expressions?.[0]?.image;
+    character?.expressions?.[0]?.image;
 
   const getCharacterPosition = () => {
     switch (characterOrientation) {
@@ -59,7 +59,7 @@ export default function PointToPonder({
         <motion.img
           key={characterImage}
           src={characterImage}
-          alt={character.name}
+          alt={character?.name}
           className={`absolute w-72 h-auto object-contain ${getCharacterPosition()}`}
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -78,7 +78,7 @@ export default function PointToPonder({
 
         {/* Character Name + Emotion */}
         <h4 className="text-lg text-purple-300 font-semibold mb-2">
-          {character.name} {characterEmotion && `(${characterEmotion})`}
+          {character?.name} {characterEmotion && `(${characterEmotion})`}
         </h4>
 
         {/* Point Text */}

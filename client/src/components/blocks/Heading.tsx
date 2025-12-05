@@ -19,7 +19,7 @@ export default function Heading({
   disableGlobalTap,
   enableGlobalTap,
 }: HeadingProps) {
-  const lines = description
+  const lines = (description ?? "")
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);

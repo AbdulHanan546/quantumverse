@@ -66,15 +66,14 @@ export default function StackOrder({
   disableGlobalTap,
   enableGlobalTap,
 }: StackOrderProps) {
-  const [items, setItems] = useState(
-    () =>
-      blocks
-        .slice()
-        .sort((a, b) => a.order - b.order)
-        .map((b, idx) => ({
-          ...b,
-          id: b.id || `block-${idx}-${Math.random().toString(36).slice(2, 7)}`,
-        }))
+  const [items, setItems] = useState(() =>
+    (blocks ?? [])
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((b, idx) => ({
+        ...b,
+        id: b.id || `block-${idx}-${Math.random().toString(36).slice(2, 7)}`
+      }))
   );
   const [submitted, setSubmitted] = useState(false);
   const [showTapHint, setShowTapHint] = useState(false);

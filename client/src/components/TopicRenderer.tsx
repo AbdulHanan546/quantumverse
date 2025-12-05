@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useLocation } from "react-router-dom";
+import { useProgress } from "../context/ProgressContext";
 import Heading from "./blocks/Heading";
 import MCQ from "./blocks/MCQ";
 import TrueFalse from "./blocks/TrueFalse";
@@ -20,6 +22,10 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
   const [index, setIndex] = useState(0);
   const [allowTap, setAllowTap] = useState(true);
   const cooldownRef = useRef(false);
+  const { slug } = useParams();
+  const location = useLocation();
+  const topicDocumentId = slug;
+  const { start, update, complete } = useProgress();
 
   const current = components[index];
 
@@ -31,10 +37,17 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
 
     if (index < components.length - 1) {
       console.log(`👉 Moving to next component index: ${index + 1}`);
+      // Update progress before moving UI index
+      if (topicDocumentId) {
+        void update(topicDocumentId, index + 1, components.length);
+      }
       setIndex((prev) => prev + 1);
       setAllowTap(true);
     } else {
       console.log("✅ End of topic reached.");
+      if (topicDocumentId) {
+        void complete(topicDocumentId);
+      }
     }
   }, [index, components.length]);
 
@@ -64,6 +77,14 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
       window.removeEventListener("touchstart", handleTap);
     };
   }, [allowTap, next]);
+
+  // Start progress for this topic when mounted
+  useEffect(() => {
+    if (!topicDocumentId) return;
+    const state = location.state as { chapterDocumentId?: string } | null;
+    const chapterDocumentId = state?.chapterDocumentId;
+    void start(topicDocumentId, components.length, chapterDocumentId);
+  }, [topicDocumentId, components.length, start, location.state]);
 
   /** Tap control helpers for child components */
   const disableGlobalTap = useCallback(() => {

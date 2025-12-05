@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
+import { getAllChapterAggregates } from "../../api/chapterProgress";
 
 interface Topic {
   id: number;
@@ -25,6 +26,7 @@ export default function StudentHome() {
 
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aggregates, setAggregates] = useState<Record<string, { totalTopics: number; completedTopics: number; averagePercent: number }>>({});
 
   useEffect(() => {
     async function loadChapters() {
@@ -43,6 +45,21 @@ export default function StudentHome() {
         }));
 
         setChapters(formatted);
+        // Fetch aggregates once authenticated
+        try {
+          const aggs = await getAllChapterAggregates();
+          const map: Record<string, { totalTopics: number; completedTopics: number; averagePercent: number }> = {};
+          for (const a of aggs) {
+            map[a.chapterDocumentId] = {
+              totalTopics: a.totalTopics,
+              completedTopics: a.completedTopics,
+              averagePercent: a.averagePercent,
+            };
+          }
+          setAggregates(map);
+        } catch (e) {
+          // ignore if user has no progress yet
+        }
       } catch (err) {
         console.error("Failed to fetch chapters:", err);
       } finally {
@@ -86,6 +103,11 @@ export default function StudentHome() {
 
     <h2 className="text-2xl font-semibold text-green-400">{chapter.name}</h2>
     <p className="text-slate-400 text-sm mt-1">{chapter.description}</p>
+    {aggregates[chapter.documentId] && (
+      <div className="mt-3 text-xs px-2 py-1 rounded-full border border-green-400/40 text-green-300 inline-block">
+        {aggregates[chapter.documentId].completedTopics}/{aggregates[chapter.documentId].totalTopics} completed · {aggregates[chapter.documentId].averagePercent}% avg
+      </div>
+    )}
   </button>
 ))}
 

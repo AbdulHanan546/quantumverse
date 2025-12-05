@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { ProgressProvider } from "./context/ProgressContext";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import StudentHome from "./pages/student/Home";
@@ -26,6 +27,7 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
+        <ProgressProvider>
         <div className="w-full min-h-screen bg-black text-white">
           <Navbar />
 
@@ -76,6 +78,7 @@ export default function App() {
 
           </Routes>
         </div>
+        </ProgressProvider>
       </AuthProvider>
     </Router>
   );

@@ -98,7 +98,7 @@ export default function MCQ({
                 handleSelect(key);
               }}
             >
-              {value.option}
+              {value?.option}
             </motion.div>
           );
         })}
@@ -115,7 +115,7 @@ export default function MCQ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
           >
-            {options[selected].reason}
+            {options[selected]?.reason}
           </motion.div>
         )}
       </AnimatePresence>
