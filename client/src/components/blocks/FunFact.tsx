@@ -1,20 +1,18 @@
 import { motion } from "framer-motion";
 
-// Character type from Strapi
 interface Character {
   name: string;
-  description?: string;
-  expressions?: { image?: string; emotionType?: string }[]; // from Emotion component
-  image?: string; // frontend-only, mapped from expressions
+  expressions?: { image?: string; emotionType?: string }[];
+  image?: string;
 }
 
 interface FunFactProps {
   fact: string;
-  illustration?: string; // media URL from Strapi
-  character: Character; // must come fully populated from Strapi
-  characterOrientation?: "left" | "right" | "center"; // frontend-only
-  characterEmotion?: "happy" | "surprised" | "curious" | "neutral"; // optional
-  characterDialogue?: string; // optional
+  illustration?: string;
+  character: Character;
+  characterOrientation?: "left" | "right"; // screen side
+  characterEmotion?: "happy" | "surprised" | "curious" | "neutral";
+  characterDialogue?: string;
   onNext?: () => void;
 }
 
@@ -27,39 +25,31 @@ export default function FunFact({
   characterDialogue,
   onNext,
 }: FunFactProps) {
-  // Map character image from expressions if image not already provided
   const characterImage =
-   // character.image ||
-    character?.expressions?.find((exp) => exp?.emotionType === characterEmotion)
-      ?.image ||
+    character.image ||
+    character?.expressions?.find((exp) => exp?.emotionType === characterEmotion)?.image ||
     character?.expressions?.[0]?.image;
 
   const getCharacterPosition = () => {
-    switch (characterOrientation) {
-      case "left":
-        return "bottom-0 left-10";
-      case "center":
-        return "bottom-0 left-1/2 -translate-x-1/2";
-      case "right":
-      default:
-        return "bottom-0 right-10";
-    }
+    return characterOrientation === "left"
+      ? "absolute left-10 bottom-20"
+      : "absolute right-10 bottom-20";
   };
 
   return (
     <div
-      className="relative w-full h-screen overflow-hidden bg-gradient-to-b from-[#080812] to-[#111122] text-white flex flex-col justify-end cursor-pointer select-none px-6 pb-20"
+      className="relative w-full h-screen flex flex-col justify-end items-center bg-gradient-to-b from-[#080812] to-[#111122] text-white cursor-pointer select-none px-6 pb-20"
       onClick={onNext}
       onTouchStart={onNext}
     >
-      {/* Animated Glow Background */}
+      {/* Background Glow */}
       <motion.div
         className="absolute inset-0 bg-gradient-radial from-blue-900/30 via-transparent to-black"
         animate={{ scale: [1, 1.05, 1], opacity: [0.6, 0.9, 0.6] }}
         transition={{ repeat: Infinity, duration: 8 }}
       />
 
-      {/* Illustration */}
+      {/* Illustration (optional, above dialogue box) */}
       {illustration && (
         <motion.img
           src={illustration}
@@ -71,7 +61,7 @@ export default function FunFact({
         />
       )}
 
-      {/* Fact Box */}
+      {/* Dialogue Box */}
       <motion.div
         className="relative z-10 max-w-3xl bg-black/50 backdrop-blur-md rounded-2xl p-6 flex flex-col items-center shadow-lg"
         initial={{ opacity: 0, y: 40 }}
@@ -82,23 +72,23 @@ export default function FunFact({
 
         {characterDialogue && (
           <h4 className="text-lg text-purple-300 font-semibold mb-2">
-            {character?.name} {characterEmotion && `(${characterEmotion})`}
+            {character?.name} 
           </h4>
         )}
 
         <p className="text-gray-200 text-lg text-center">{fact}</p>
       </motion.div>
 
-      {/* Character Image */}
+      {/* Character floating to the side */}
       {characterImage && (
         <motion.img
           key={characterImage}
           src={characterImage}
           alt={character?.name}
-          className={`absolute w-48 h-auto object-contain ${getCharacterPosition()} z-20`}
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
+          className={`${getCharacterPosition()} w-48 h-auto object-contain z-20`}
+          initial={{ opacity: 0, x: characterOrientation === "left" ? -50 : 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
         />
       )}
     </div>

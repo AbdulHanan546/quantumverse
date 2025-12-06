@@ -72,7 +72,7 @@ export default function StackOrder({
       .sort((a, b) => a.order - b.order)
       .map((b, idx) => ({
         ...b,
-        id: b.id || `block-${idx}-${Math.random().toString(36).slice(2, 7)}`
+        id: b.id || `block-${idx}-${Math.random().toString(36).slice(2, 7)}`,
       }))
   );
   const [submitted, setSubmitted] = useState(false);
@@ -118,33 +118,39 @@ export default function StackOrder({
         transition={{ repeat: Infinity, duration: 8 }}
       />
 
-      {/* Top Section */}
-      <div className="z-10 max-w-2xl text-center mb-10 px-6">
-        <h2 className="text-2xl text-blue-300 font-semibold mb-3">{statement}</h2>
-        {illustration && (
-          <img
-            src={illustration}
-            alt="illustration"
-            className="mx-auto max-h-64 object-contain opacity-80 mb-6"
-          />
-        )}
+      {/* Top Statement */}
+      <div className="z-10 max-w-2xl text-center mb-6 px-6">
+        <h2 className="text-2xl text-blue-300 font-semibold mb-2">{statement}</h2>
       </div>
 
-      {/* Draggable List */}
-      <div className="w-full max-w-xl space-y-4 z-10">
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext
-            items={items.map((i) => i.id!)}
-            strategy={verticalListSortingStrategy}
-          >
-            <AnimatePresence>
-              {items.map((item) => (
-                <SortableItem key={item.id} {...item} />
-              ))}
-            </AnimatePresence>
-          </SortableContext>
-        </DndContext>
-      </div>
+      {/* Main Content: Illustration left, blocks right */}
+      <div className="z-10 flex items-start gap-6 w-full max-w-4xl px-6">
+  {/* Main Illustration */}
+  {illustration && (
+    <img
+      src={illustration}
+      alt="illustration"
+      className="w-40 h-40 md:w-48 md:h-48 object-contain rounded-lg shadow-lg flex-shrink-0"
+    />
+  )}
+
+  {/* Draggable Blocks */}
+  <div className="flex-1 max-w-xl space-y-4">
+    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext
+        items={items.map((i) => i.id!)}
+        strategy={verticalListSortingStrategy}
+      >
+        <AnimatePresence>
+          {items.map((item) => (
+            <SortableItem key={item.id} {...item} />
+          ))}
+        </AnimatePresence>
+      </SortableContext>
+    </DndContext>
+  </div>
+</div>
+
 
       {/* Submit Button */}
       {!submitted && (
@@ -163,7 +169,7 @@ export default function StackOrder({
         {submitted && (
           <motion.div
             key="feedback"
-            className="mt-8 text-center text-lg text-gray-300 z-10"
+            className="mt-6 text-center text-lg text-gray-300 z-10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation,useNavigate } from "react-router-dom";
 import { useProgress } from "../context/ProgressContext";
 import Heading from "./blocks/Heading";
 import MCQ from "./blocks/MCQ";
@@ -24,6 +24,7 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
   const cooldownRef = useRef(false);
   const { slug } = useParams();
   const location = useLocation();
+    const navigate = useNavigate();
   const topicDocumentId = slug;
   const { start, update, complete } = useProgress();
 
@@ -48,6 +49,7 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
       if (topicDocumentId) {
         void complete(topicDocumentId);
       }
+      navigate(-1);
     }
   }, [index, components.length]);
 
@@ -136,6 +138,8 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
         data-child-interactive="false"
       >
         <Comp
+              key={`${current.type}-${current.props.id || index}`} 
+
           {...current.props}
           onNext={next}
           disableGlobalTap={disableGlobalTap}

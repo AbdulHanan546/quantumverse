@@ -5,7 +5,7 @@ import { getAllChapterAggregates } from "../api/chapterProgress";
 import axios from "axios";
 
 export default function Navbar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth(); // <-- include logout
   const [completedChapters, setCompletedChapters] = useState<number | null>(null);
   const [totalChapters, setTotalChapters] = useState<number | null>(null);
 
@@ -86,6 +86,14 @@ export default function Navbar() {
               </div>
             </div>
           )}
+
+          {/* Logout Button */}
+          <button
+            onClick={() => logout?.()}
+            className="ml-3 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md shadow-sm"
+          >
+            Logout
+          </button>
         </div>
       )}
     </nav>
