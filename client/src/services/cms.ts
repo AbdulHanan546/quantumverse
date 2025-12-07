@@ -15,6 +15,14 @@ export async function fetchAllChapters() {
 
   return data.data;
 }
+function resolveMedia(media: any): string | null {
+  if (!media) return null;
+  // If media is string (legacy)
+  if (typeof media === "string") return media;
+  // Strapi media object
+  return media?.url ?? media?.data?.attributes?.url ?? null;
+}
+
 
 // Fetch a single topic by documentId
 export async function fetchTopic(documentId: string) {
@@ -51,15 +59,59 @@ export async function fetchTopic(documentId: string) {
       }
 
       const props: any = { ...block };
+      // Heading → Extract background image URL
+if (block.__component === "slide.heading") {
+  props.background =
+    typeof block.background === "string"
+      ? block.background
+      : block.background?.url ?? null;
+}
+
 
       // Diagram
       if (block.__component === "slide.diagram") {
         props.illustration = block.illustration?.url ?? "";
         props.text = block.text ?? "";
       }
+if (block.__component === "slide.story") {
+  props.scenes = block.scenes?.map((scene: any) => {
+    
+    let assignedChar = null;
+    if (characters.length > 0) {
+      const randomChar = characters[Math.floor(Math.random() * characters.length)];
+      assignedChar = {
+        id: randomChar.id,
+        name: randomChar.name,
+        description: randomChar.description,
+        image:
+          randomChar.expressions?.[0]?.image?.url ??
+          randomChar.image?.url ??
+          null,
+        expressions:
+          randomChar.expressions?.map((exp: any) => ({
+            image: exp.image?.url ?? null,
+            emotionType: exp.emotionType,
+          })) ?? [],
+      };
+    }
+
+    return {
+      dialogue: scene.dialogue ?? "",
+      emotion: scene.emotion ?? "",
+      orientation:
+        scene.orientation?.toLowerCase().replace(" ", "-") ?? "bottom-right",
+
+      // ⭐ Universal Strapi media extraction
+      background: resolveMedia(scene.background),
+
+      character: assignedChar,
+    };
+  });
+}
+
 
       // Story / FunFact / PointToPonder → assign random character
-      if (["slide.story", "slide.fun-fact", "slide.point-to-ponder"].includes(block.__component)) {
+      if ([ "slide.fun-fact", "slide.point-to-ponder"].includes(block.__component)) {
         if (characters.length > 0) {
           const randomChar = characters[Math.floor(Math.random() * characters.length)];
           props.character = {

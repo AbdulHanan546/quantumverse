@@ -10,6 +10,7 @@ interface CharacterExpression {
 interface Character {
   name: string;
   expressions?: CharacterExpression[];
+  image?: string; // Direct image URL from Strapi
 }
 
 interface Scene {
@@ -72,15 +73,32 @@ export default function Story({
         return "bottom-10 right-10";
     }
   };
+const normalizedOrientation = current.orientation
+  ?.toLowerCase()
+  .replace(" ", "-") as
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right";
 
   // Pick character image based on scene emotion or fallback to first expression
   const getCharacterImage = (char?: Character, emotion?: string) => {
-    if (!char?.expressions?.length) return undefined;
+  if (!char) return undefined;
+
+  // 1) NEW FIX: If Strapi gives a direct image, use it
+  if (char.image) return char.image;
+
+  // 2) Old system: expressions array
+  if (char.expressions?.length) {
     return (
       char.expressions.find((exp) => exp.emotionType === emotion)?.image ||
       char.expressions[0].image
     );
-  };
+  }
+
+  return undefined;
+};
+
 
   const characterImage = getCharacterImage(current.character, current.emotion);
 
@@ -114,9 +132,10 @@ export default function Story({
           key={characterImage + index}
           src={characterImage}
           alt={current.character?.name || "Character"}
-          className={`absolute w-64 h-auto object-contain ${getCharacterPosition(
-            current.orientation
-          )}`}
+         className={`absolute w-64 h-auto object-contain ${getCharacterPosition(
+  normalizedOrientation
+)}`}
+
           initial={{ opacity: 0, scale: 0.9, y: 30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9 }}
