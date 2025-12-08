@@ -21,57 +21,75 @@ export default function PointToPonder({
   characterEmotion,
   onNext,
 }: PointToPonderProps) {
+  
   const characterImage =
-    character.image ||
     character?.expressions?.find((exp) => exp?.emotionType === characterEmotion)?.image ||
+    character.image ||
     character?.expressions?.[0]?.image;
 
-  const getCharacterPosition = () =>
-    characterOrientation === "left"
-      ? "absolute left-10 bottom-20"
-      : "absolute right-10 bottom-20";
+  const isLeft = characterOrientation === "left";
 
   return (
     <div
-      className="relative w-full h-screen flex flex-col justify-end items-center bg-gradient-to-b from-[#0a0a0f] to-[#141422] text-white cursor-pointer select-none px-6 pb-20"
+      className="relative w-full h-screen flex flex-col justify-end items-center 
+        bg-gradient-to-b from-[#08080f] via-[#0d0d1a] to-[#141422]
+        overflow-hidden text-white select-none px-4 sm:px-6 pb-24 sm:pb-28"
       onClick={onNext}
       onTouchStart={onNext}
     >
-      {/* Background Glow */}
+      {/* Soft Background Glow Layers */}
       <motion.div
-        className="absolute inset-0 bg-gradient-radial from-blue-900/30 via-transparent to-black"
-        animate={{ scale: [1, 1.05, 1], opacity: [0.7, 0.9, 0.7] }}
-        transition={{ repeat: Infinity, duration: 6 }}
+        className="absolute inset-0 bg-gradient-radial from-blue-800/20 via-transparent to-black"
+        animate={{ opacity: [0.3, 0.5, 0.3], scale: [1, 1.05, 1] }}
+        transition={{ duration: 8, repeat: Infinity }}
       />
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a1a2e]/20 to-black/60"
+        animate={{ opacity: [0.4, 0.6, 0.4] }}
+        transition={{ duration: 5, repeat: Infinity }}
+      />
+
+      {/* Character Reserved Space (prevents overlap) */}
+      <div className="relative w-full flex justify-center items-end h-[35vh] sm:h-[40vh] z-20">
+        {characterImage && (
+          <motion.img
+            src={characterImage}
+            alt={character?.name}
+            className={`w-40 sm:w-48 md:w-56 lg:w-64 object-contain 
+              ${isLeft ? "self-start ml-4 sm:ml-10" : "self-end mr-4 sm:mr-10"}`}
+            initial={{ opacity: 0, x: isLeft ? -40 : 40 }}
+            animate={{ opacity: 1, x: 0, y: [0, -8, 0] }}
+            transition={{
+              opacity: { duration: 0.6 },
+              x: { duration: 0.6 },
+              y: { duration: 3, repeat: Infinity },
+            }}
+          />
+        )}
+      </div>
 
       {/* Dialogue Box */}
       <motion.div
-        className="relative z-10 max-w-3xl bg-black/50 backdrop-blur-md rounded-2xl p-6 flex flex-col items-center shadow-lg"
+        className="relative z-30 max-w-3xl w-full bg-white/10 backdrop-blur-xl 
+          border border-white/10 rounded-2xl shadow-xl px-5 sm:px-8 py-6
+          flex flex-col items-center gap-3 text-center"
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        transition={{ duration: 0.9 }}
       >
-        <h3 className="text-2xl font-bold text-yellow-400 mb-3">Point to Ponder 💡</h3>
+        <h3 className="text-2xl sm:text-3xl font-bold text-yellow-400 drop-shadow">
+          Point to Ponder 💡
+        </h3>
 
-        <h4 className="text-lg text-purple-300 font-semibold mb-2">
-          {character?.name} {characterEmotion && `(${characterEmotion})`}
+        <h4 className="text-lg sm:text-xl text-purple-300 font-semibold">
+          {character?.name}{" "}
+          {characterEmotion && <span className="opacity-80">({characterEmotion})</span>}
         </h4>
 
-        <p className="text-gray-200 text-lg text-center">{point}</p>
+        <p className="text-gray-200 text-base sm:text-lg md:text-xl leading-relaxed">
+          {point}
+        </p>
       </motion.div>
-
-      {/* Character floating */}
-      {characterImage && (
-        <motion.img
-          key={characterImage}
-          src={characterImage}
-          alt={character?.name}
-          className={`${getCharacterPosition()} w-48 h-auto object-contain z-20`}
-          initial={{ opacity: 0, x: characterOrientation === "left" ? -50 : 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        />
-      )}
     </div>
   );
 }

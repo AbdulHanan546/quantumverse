@@ -4,6 +4,9 @@ import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
 import { getAllChapterAggregates } from "../../api/chapterProgress";
 
+// Import dummy topic
+import { dummyTopic } from "../../data/dummyTopic";
+
 interface Topic {
   id: number;
   documentId: string;
@@ -13,7 +16,7 @@ interface Topic {
 
 interface Chapter {
   id: number;
-  documentId: string; // add this
+  documentId: string; 
   name: string;
   description: string;
   thumbnail?: { url: string };
@@ -45,7 +48,7 @@ export default function StudentHome() {
         }));
 
         setChapters(formatted);
-        // Fetch aggregates once authenticated
+
         try {
           const aggs = await getAllChapterAggregates();
           const map: Record<string, { totalTopics: number; completedTopics: number; averagePercent: number }> = {};
@@ -70,48 +73,71 @@ export default function StudentHome() {
     loadChapters();
   }, []);
 
- const openChapter = (chapter: Chapter) => {
-  navigate(`/chapter/${chapter.documentId}`);
+  const openChapter = (chapter: Chapter) => {
+    navigate(`/chapter/${chapter.documentId}`);
+  };
+
+  const startDummyTopic = () => {
+  navigate("/topic/dummy-quantum-entanglement", {
+    state: { components: dummyTopic, title: "Quantum Entanglement" },
+  });
 };
 
-
-
-  if (loading) return <p className="p-4 text-gray-400">Loading...</p>;
+ // if (loading) return <p className="p-4 text-gray-400">Loading...</p>;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 space-y-8">
-      <h1 className="text-3xl font-bold">
-        Welcome{user?.email ? `, ${user.email}` : ""}!
-      </h1>
+  <main className="mx-auto max-w-7xl px-4 py-6 space-y-8">
+    <h1 className="text-3xl font-bold">
+      Welcome{user?.email ? `, ${user.email}` : ""}!
+    </h1>
 
-      <p className="text-slate-400">Choose a chapter to begin learning.</p>
+    <p className="text-slate-400">Choose a chapter to begin learning.</p>
 
-      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-      {chapters.map((chapter) => (
-  <button
-    key={chapter.id}
-    onClick={() => openChapter(chapter)}
-    className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition"
-  >
-    {chapter.thumbnail?.url && (
-      <img
-        src={chapter.thumbnail.url}
-        alt={chapter.name}
-        className="w-full h-40 object-cover rounded-lg mb-4"
-      />
-    )}
+    <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+      {/* Dummy Topic Card – SHOWS IMMEDIATELY */}
+      <button
+        onClick={startDummyTopic}
+        className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition relative"
+      >
+        
+        <h2 className="text-2xl font-semibold text-green-400">Quantum Entanglement</h2>
+        <p className="text-slate-400 text-sm mt-1">
+          Explore  topic demonstrating quantum entanglement with interactive components.
+        </p>
+        
+      </button>
 
-    <h2 className="text-2xl font-semibold text-green-400">{chapter.name}</h2>
-    <p className="text-slate-400 text-sm mt-1">{chapter.description}</p>
-    {aggregates[chapter.documentId] && (
-      <div className="mt-3 text-xs px-2 py-1 rounded-full border border-green-400/40 text-green-300 inline-block">
-        {aggregates[chapter.documentId].completedTopics}/{aggregates[chapter.documentId].totalTopics} completed · {aggregates[chapter.documentId].averagePercent}% avg
-      </div>
-    )}
-  </button>
-))}
+      {/* Real Chapters */}
+      {loading ? (
+        <p className="text-gray-500 col-span-full">Loading chapters…</p>
+      ) : (
+        chapters.map((chapter) => (
+          <button
+            key={chapter.id}
+            onClick={() => openChapter(chapter)}
+            className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition relative"
+          >
+            {chapter.thumbnail?.url && (
+              <img
+                src={chapter.thumbnail.url}
+                alt={chapter.name}
+                className="w-full h-40 object-cover rounded-lg mb-4"
+              />
+            )}
+            <h2 className="text-2xl font-semibold text-green-400">{chapter.name}</h2>
+            <p className="text-slate-400 text-sm mt-1">{chapter.description}</p>
+            {aggregates[chapter.documentId] && (
+              <div className="absolute top-4 right-4 text-xs px-2 py-1 rounded-full border border-green-400/40 text-green-300">
+                {aggregates[chapter.documentId].completedTopics}/
+                {aggregates[chapter.documentId].totalTopics} completed ·{" "}
+                {aggregates[chapter.documentId].averagePercent}% avg
+              </div>
+            )}
+          </button>
+        ))
+      )}
+    </div>
+  </main>
+);
 
-      </div>
-    </main>
-  );
 }
