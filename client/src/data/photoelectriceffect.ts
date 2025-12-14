@@ -32,7 +32,7 @@ export const photoelectricEffectTopic = [
             name: "Albert Einstein",
             image: "/images/Scientists/Einstein/einstein.png"
           },
-          background: "/images/Photoelectric/real-life-problem.png",
+          background: "/images/Photoelectric/story.jpg",
           emotion: "excited",
           orientation: "bottom-right"
         }
@@ -125,7 +125,7 @@ export const photoelectricEffectTopic = [
     type: "ShortAnimation",
     props: {
       title: "Photoelectric Effect Demo",
-      gif: "/images/Photoelectric/photoelectric-diagram.gif",
+      gif: "/images/Photoelectric/photoelectric.gif",
       description:
         "See electrons being emitted when high-frequency light hits metal."
     }
