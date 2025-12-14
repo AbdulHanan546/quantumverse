@@ -3,12 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useProgress } from "../../context/ProgressContext";
 import { getChapterAggregate } from "../../api/chapterProgress";
-
+import { fetchTopic } from "../../services/cms";
 interface ChapterTopicsProps {
   onSelectTopic: (documentId: string) => void;
 }
 
-export default function ChapterTopics({ onSelectTopic }: ChapterTopicsProps) {
+export default function ChapterTopics() {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -67,10 +67,25 @@ setTopics(formattedTopics);
       .catch(() => setChapterAgg(null));
   }, [id, byTopic]);
 
-  const openTopic = (documentId: string) => {
-    onSelectTopic(documentId); // fetch topic data
-    navigate(`/topic/${documentId}`, { state: { chapterDocumentId: id } });
-  };
+   // In ChapterTopics.tsx
+const openTopic = async (documentId: string) => {
+  try {
+    const topicData = await fetchTopic(documentId);
+    console.log("Fetched topic data:", topicData);
+    
+    // topicData IS the components array, not an object with a components property
+    navigate(`/topic/${documentId}`, { 
+      state: { 
+        chapterDocumentId: id,
+        components: topicData  // Changed from topicData.components to just topicData
+      } 
+    });
+  } catch (err) {
+    console.error("Failed to load topic:", err);
+  }
+};
+
+
 
   if (loading) return <p className="p-4 text-gray-400">Loading topics...</p>;
 
