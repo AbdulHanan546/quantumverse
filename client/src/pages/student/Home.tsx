@@ -100,9 +100,9 @@ export default function StudentHome() {
         className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition relative"
       >
         
-        <h2 className="text-2xl font-semibold text-green-400">Quantum Entanglement</h2>
+        <h2 className="text-2xl font-semibold text-green-400">Compton Effect</h2>
         <p className="text-slate-400 text-sm mt-1">
-          Explore  topic demonstrating quantum entanglement with interactive components.
+          Explore  topic demonstrating compton effect with interactive components.
         </p>
         
       </button>

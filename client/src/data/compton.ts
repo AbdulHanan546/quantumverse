@@ -32,7 +32,7 @@ export const comptonEffectTopic = [
             name: "Arthur Compton",
             image: "/images/Scientists/Compton/comptonhappy.png"
           },
-          background: "/images/Compton/real-life-lab.png",
+          background: "/images/compton/real-life-lab.png",
           emotion: "excited",
           orientation: "bottom-right"
         }
@@ -44,7 +44,7 @@ export const comptonEffectTopic = [
     type: "Diagram",
     props: {
       title: "What Is the Compton Effect?",
-      illustration: "/images/Compton/compton-diagram1.gif",
+      illustration: "/images/compton/compton-diagram1.gif",
       text:
         "When a high-energy photon collides with an electron, it transfers energy and changes direction."
     }
@@ -110,12 +110,12 @@ export const comptonEffectTopic = [
       title: "Before vs After Collision",
       left: {
         label: "Before Collision",
-        image: "/images/Compton/before-collision.png",
+        image: "/images/compton/before-collision.png",
         description: "High-energy photon approaches electron."
       },
       right: {
         label: "After Collision",
-        image: "/images/Compton/after-collision.png",
+        image: "/images/compton/after-collision.png",
         description: "Photon scatters with lower energy."
       }
     }
@@ -125,7 +125,7 @@ export const comptonEffectTopic = [
     type: "ShortAnimation",
     props: {
       title: "Compton Scattering Demo",
-      gif: "/images/Compton/compton-diagram.gif",
+      gif: "/images/compton/compton-diagram.gif",
       description:
         "Watch how photons scatter after colliding with electrons."
     }
