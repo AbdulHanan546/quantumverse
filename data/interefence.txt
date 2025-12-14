@@ -5,7 +5,7 @@ export const interferenceTopic = [
       title: "Interference in Physics",
       description:
         "When waves meet, they combine to create patterns of highs and lows.\nThis phenomenon is called *interference.*",
-      background: "/images/interference-1.png"
+      background: "\images\Interferrence\download.jfif"
     }
   },
 
@@ -13,7 +13,7 @@ export const interferenceTopic = [
     type: "PointToPonder",
     props: {
       point: "How can two waves make each other bigger or cancel out?",
-      character: { name: "Ava", image: "/images/7.png" },
+      character: { name: "Thomas", image: "/images/Scientists/Thomas/thinkingthomas.png" },
       characterEmotion: "curious"
     }
   },
@@ -24,15 +24,15 @@ export const interferenceTopic = [
       scenes: [
         {
           dialogue: "Welcome to the world of waves!",
-          character: { name: "Ava", image: "/images/6.png" },
-          background: "/images/interference-2.png",
+          character: { name: "", image: "/images/Scientists/Thomas/happythomas.png" },
+          background: "/images/Interferrence/interferrecestory.png",
           emotion: "happy",
           orientation: "bottom-right"
         },
         {
           dialogue: "Here, we'll see how waves can combine in surprising ways.",
-          character: { name: "Ava", image: "/images/6.png" },
-          background: "/images/interference-2.png",
+          character: { name: "Ava", image: "/images/Scientists/Thomas/happythomas.png" },
+          background: "/images/Interferrence/interferrecestory.png",
           emotion: "excited",
           orientation: "bottom-left"
         }
@@ -44,7 +44,7 @@ export const interferenceTopic = [
     type: "Diagram",
     props: {
       title: "What Is Interference?",
-      illustration: "/images/interference-diagram.png",
+      illustration: "/images/Interferrence/wave.gif",
       text:
         "Two waves meet. Where their peaks align, they amplify (constructive interference). Where a peak meets a trough, they cancel (destructive interference)."
     }
@@ -108,27 +108,14 @@ export const interferenceTopic = [
       title: "Individual vs Combined Waves",
       left: {
         label: "Single Wave",
-        image: "/images/interference-3.png",
+        image: "/images/interferrence/singlewave.png",
         description: "Just one wave traveling."
       },
       right: {
         label: "Interfering Waves",
-        image: "/images/interference-4.png",
+        image: "/images/interferrence/interferringwaves.png",
         description: "Two waves meet, producing peaks and troughs."
       }
-    }
-  },
-
-  {
-    type: "ZoomReveal",
-    props: {
-      title: "Wave Interactions Up Close",
-      image: "/images/interference-5.png",
-      labels: [
-        { text: "Peak", x: 20, y: 40 },
-        { text: "Trough", x: 50, y: 60 },
-        { text: "Pattern", x: 70, y: 30 }
-      ]
     }
   },
 
@@ -136,7 +123,7 @@ export const interferenceTopic = [
     type: "ShortAnimation",
     props: {
       title: "Double-Slit Demo",
-      gif: "/images/interference-gif.gif",
+      gif: "/images/interferrence/wave.gif",
       description: "Watch electrons create interference patterns as if they were waves!"
     }
   },
