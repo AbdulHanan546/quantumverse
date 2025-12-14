@@ -1,4 +1,3 @@
-import { interferenceTopic } from "./interefence";
-import { quantumEntanglement } from "./quantum-entaglement";
+ import { comptonEffectTopic } from "./compton";
 
-export const dummyTopic = interferenceTopic;
+export const dummyTopic = comptonEffectTopic;
