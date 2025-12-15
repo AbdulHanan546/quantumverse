@@ -3,12 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useProgress } from "../../context/ProgressContext";
 import { getChapterAggregate } from "../../api/chapterProgress";
-import { fetchTopic } from "../../services/cms";
+
 interface ChapterTopicsProps {
   onSelectTopic: (documentId: string) => void;
 }
 
-export default function ChapterTopics() {
+export default function ChapterTopics({ onSelectTopic }: ChapterTopicsProps) {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -67,25 +67,10 @@ setTopics(formattedTopics);
       .catch(() => setChapterAgg(null));
   }, [id, byTopic]);
 
-   // In ChapterTopics.tsx
-const openTopic = async (documentId: string) => {
-  try {
-    const topicData = await fetchTopic(documentId);
-    console.log("Fetched topic data:", topicData);
-    
-    // topicData IS the components array, not an object with a components property
-    navigate(`/topic/${documentId}`, { 
-      state: { 
-        chapterDocumentId: id,
-        components: topicData  // Changed from topicData.components to just topicData
-      } 
-    });
-  } catch (err) {
-    console.error("Failed to load topic:", err);
-  }
-};
-
-
+  const openTopic = (documentId: string) => {
+    onSelectTopic(documentId); // fetch topic data
+    navigate(`/topic/${documentId}`, { state: { chapterDocumentId: id } });
+  };
 
   if (loading) return <p className="p-4 text-gray-400">Loading topics...</p>;
 
@@ -95,12 +80,14 @@ const openTopic = async (documentId: string) => {
         ← Back
       </button>
 
-      <h1 className="text-3xl font-bold text-green-400">{chapterName}</h1>
-      {chapterAgg && (
-        <div className="text-green-300 text-xs inline-block border border-green-400/40 rounded-full px-2 py-1">
-          {chapterAgg.completedTopics}/{chapterAgg.totalTopics} completed · {chapterAgg.averagePercent}% avg
-        </div>
-      )}
+      <div>
+        <h1 className="text-3xl font-bold text-green-400">{chapterName}</h1>
+        {chapterAgg && (
+          <div className="text-green-300 text-xs inline-block border border-green-400/40 rounded-full px-2 py-1 mt-2">
+            {chapterAgg.completedTopics}/{chapterAgg.totalTopics} completed · {chapterAgg.averagePercent}% avg
+          </div>
+        )}
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {topics.map((topic: any) => {
@@ -108,18 +95,15 @@ const openTopic = async (documentId: string) => {
           const percent = pr?.percent ?? 0;
           const isCompleted = pr?.status === 'completed';
           return (
-            <button
-              key={topic.documentId}
-              onClick={() => openTopic(topic.documentId)}
-              className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition relative"
-            >
-              <h2 className="text-xl font-semibold text-green-300">{topic.name}</h2>
-              <p className="text-slate-400 text-sm mt-1">{topic.description}</p>
-
-              <div className="absolute top-4 right-4 text-xs px-2 py-1 rounded-full border border-green-400/40 text-green-300">
-                {isCompleted ? 'Completed ✅' : `${percent}%`}
-              </div>
-            </button>
+            <div key={topic.documentId} className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition">
+              <button onClick={() => openTopic(topic.documentId)} className="text-left w-full">
+                <h2 className="text-xl font-semibold text-green-300">{topic.name}</h2>
+                <p className="text-slate-400 text-sm mt-1">{topic.description}</p>
+                <div className="text-xs px-2 py-1 rounded-full border border-green-400/40 text-green-300 mt-3 inline-block">
+                  {isCompleted ? 'Completed ✅' : `${percent}%`}
+                </div>
+              </button>
+            </div>
           );
         })}
       </div>
