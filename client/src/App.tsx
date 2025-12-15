@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ProgressProvider } from "./context/ProgressContext";
@@ -10,23 +10,16 @@ import Navbar from "./components/Navbar";
 import TopicRenderer from "./components/TopicRenderer";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./index.css";
-import { fetchTopic } from "./services/cms";
 
 function AppWrapper() {
-  const [topicData, setTopicData] = useState<any | null>(null);
   const location = useLocation();
 
-  const handleTopicSelect = async (documentId: string) => {
-    try {
-      const data = await fetchTopic(documentId);
-      setTopicData(data);
-    } catch (err) {
-      console.error("Failed to load topic:", err);
-    }
-  };
-function TopicRendererWrapper() {
+  function TopicRendererWrapper() {
   const location = useLocation();
   const state = location.state as { components?: any[] };
+
+  console.log("TopicRendererWrapper - location.state:", location.state);
+  console.log("TopicRendererWrapper - components:", state?.components);
 
   if (state?.components?.length) {
     return <TopicRenderer components={state.components} />;
@@ -64,18 +57,18 @@ function TopicRendererWrapper() {
           path="/chapter/:id"
           element={
             <ProtectedRoute roles={["student", "admin"]}>
-              <ChapterTopics onSelectTopic={handleTopicSelect} />
+              <ChapterTopics />
             </ProtectedRoute>
           }
         />
 
         {/* Topic Renderer */}
-           <Route
-  path="/topic/:slug"
-  element={
-    <TopicRendererWrapper />
-  }
-/>
+        <Route
+          path="/topic/:slug"
+          element={
+            <TopicRendererWrapper />
+          }
+        />
 
         {/* Default Routes */}
         <Route path="/" element={<SignIn />} />
