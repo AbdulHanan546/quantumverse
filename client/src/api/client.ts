@@ -6,7 +6,7 @@ const baseURL: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3
 
 export const api = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: 120000, // 2 minutes for long-running requests like AI generation
 });
 
 // Request interceptor

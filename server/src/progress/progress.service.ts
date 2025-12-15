@@ -13,7 +13,7 @@ export class ProgressService {
     @InjectRepository(Progress) private readonly repo: Repository<Progress>,
     @InjectRepository(ChapterProgress) private readonly chapterRepo: Repository<ChapterProgress>,
     private readonly usersService: UsersService,
-  ) {}
+  ) { }
 
   async getAllForUser(userId: number) {
     return this.repo.find({ where: { user: { id: userId } } });
@@ -31,9 +31,9 @@ export class ProgressService {
 
   async start(userId: number, dto: StartProgressDto) {
     const user = await this.usersService.findById(userId);
-    let row = await this.getForUserAndTopic(userId, dto.topicDocumentId);
-    if (!row) {
-      row = this.repo.create({
+
+    await this.repo.upsert(
+      {
         user,
         topicDocumentId: dto.topicDocumentId,
         chapterDocumentId: dto.chapterDocumentId ?? null,
@@ -42,17 +42,21 @@ export class ProgressService {
         percent: this.computePercent(0, dto.totalBlocks),
         status: dto.totalBlocks > 0 ? 'in_progress' : 'not_started',
         completedAt: null,
-      });
-    } else {
-      row.totalBlocks = dto.totalBlocks;
-      if (row.percent < 100) row.status = 'in_progress';
-    }
-    const saved = await this.repo.save(row);
-    if (saved.chapterDocumentId) {
+      },
+      {
+        conflictPaths: ['user', 'topicDocumentId'],
+      },
+    );
+
+    const saved = await this.getForUserAndTopic(userId, dto.topicDocumentId);
+
+    if (saved?.chapterDocumentId) {
       await this.recomputeChapter(userId, saved.chapterDocumentId);
     }
+
     return saved;
   }
+
 
   async update(userId: number, topicDocumentId: string, patch: UpdateProgressDto) {
     const row = await this.getForUserAndTopic(userId, topicDocumentId);

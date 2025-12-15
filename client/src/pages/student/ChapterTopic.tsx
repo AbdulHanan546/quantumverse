@@ -95,12 +95,14 @@ const openTopic = async (documentId: string) => {
         ← Back
       </button>
 
-      <h1 className="text-3xl font-bold text-green-400">{chapterName}</h1>
-      {chapterAgg && (
-        <div className="text-green-300 text-xs inline-block border border-green-400/40 rounded-full px-2 py-1">
-          {chapterAgg.completedTopics}/{chapterAgg.totalTopics} completed · {chapterAgg.averagePercent}% avg
-        </div>
-      )}
+      <div>
+        <h1 className="text-3xl font-bold text-green-400">{chapterName}</h1>
+        {chapterAgg && (
+          <div className="text-green-300 text-xs inline-block border border-green-400/40 rounded-full px-2 py-1 mt-2">
+            {chapterAgg.completedTopics}/{chapterAgg.totalTopics} completed · {chapterAgg.averagePercent}% avg
+          </div>
+        )}
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {topics.map((topic: any) => {
@@ -108,18 +110,15 @@ const openTopic = async (documentId: string) => {
           const percent = pr?.percent ?? 0;
           const isCompleted = pr?.status === 'completed';
           return (
-            <button
-              key={topic.documentId}
-              onClick={() => openTopic(topic.documentId)}
-              className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition relative"
-            >
-              <h2 className="text-xl font-semibold text-green-300">{topic.name}</h2>
-              <p className="text-slate-400 text-sm mt-1">{topic.description}</p>
-
-              <div className="absolute top-4 right-4 text-xs px-2 py-1 rounded-full border border-green-400/40 text-green-300">
-                {isCompleted ? 'Completed ✅' : `${percent}%`}
-              </div>
-            </button>
+            <div key={topic.documentId} className="bg-gray-900/40 border border-green-400/30 rounded-xl p-4 text-left hover:border-green-400 transition">
+              <button onClick={() => openTopic(topic.documentId)} className="text-left w-full">
+                <h2 className="text-xl font-semibold text-green-300">{topic.name}</h2>
+                <p className="text-slate-400 text-sm mt-1">{topic.description}</p>
+                <div className="text-xs px-2 py-1 rounded-full border border-green-400/40 text-green-300 mt-3 inline-block">
+                  {isCompleted ? 'Completed ✅' : `${percent}%`}
+                </div>
+              </button>
+            </div>
           );
         })}
       </div>

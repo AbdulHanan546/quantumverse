@@ -36,6 +36,11 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
   const navigate = useNavigate();
   const topicDocumentId = slug;
 
+  // Check if these are AI-generated slides
+  const state = location.state as { isGenerated?: boolean; generatedAt?: string } | null;
+  const isGenerated = state?.isGenerated ?? false;
+  const generatedAt = state?.generatedAt;
+
   const { start, update, complete } = useProgress();
   const current = components[index];
 
@@ -151,6 +156,18 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
       className="w-full h-screen bg-black text-white overflow-hidden"
       data-child-interactive="false"
     >
+      {/* Generated Slides Indicator */}
+      {isGenerated && (
+        <div className="fixed top-4 right-4 z-40 bg-blue-900/80 border border-blue-400/50 rounded-lg px-3 py-2 text-xs text-blue-200 flex items-center gap-2 backdrop-blur-sm">
+          <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+          <span>AI-Generated Preview</span>
+          {generatedAt && (
+            <span className="text-blue-300/70">
+              {new Date(generatedAt).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      )}
       <Comp key={`${current.type}-${current.props.id || index}`} {...props} data-child-interactive="true" />
     </div>
   );
