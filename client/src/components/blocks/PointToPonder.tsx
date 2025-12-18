@@ -12,6 +12,11 @@ interface PointToPonderProps {
   characterOrientation?: "left" | "right";
   characterEmotion?: "thinking" | "curious" | "sad" | "neutral" | "happy";
   onNext?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  _isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function PointToPonder({
@@ -20,6 +25,9 @@ export default function PointToPonder({
   characterOrientation = "right",
   characterEmotion,
   onNext,
+  autoPlay = false,
+  _isPaused = false,
+  togglePause = () => {},
 }: PointToPonderProps) {
   
   const characterImage =
@@ -29,13 +37,21 @@ export default function PointToPonder({
 
   const isLeft = characterOrientation === "left";
 
+  const handleTap = () => {
+    if (autoPlay) {
+      togglePause?.();
+    } else {
+      onNext?.();
+    }
+  };
+
   return (
     <div
       className="relative w-full h-screen flex flex-col justify-end items-center 
         bg-gradient-to-b from-[#08080f] via-[#0d0d1a] to-[#141422]
         overflow-hidden text-white select-none px-4 sm:px-6 pb-24 sm:pb-28"
-      onClick={onNext}
-      onTouchStart={onNext}
+      onClick={handleTap}
+      onTouchStart={handleTap}
     >
       {/* Soft Background Glow Layers */}
       <motion.div

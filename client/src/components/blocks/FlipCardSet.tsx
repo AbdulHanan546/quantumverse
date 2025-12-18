@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RotateCcw } from "lucide-react";
+import { useAutoPlay } from "../../hooks/useAutoPlay";
+import { calculateReadingTime } from "../../utils/timeCalculation";
 
 interface Card {
   front: string;
@@ -11,6 +13,11 @@ interface FlipCardSetProps {
   title: string;
   cards: Card[];
   onNext?: () => void; // called when user taps after all cards flipped
+  _marginX?: string;
+  _marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 function FlipCard({
@@ -72,16 +79,66 @@ function FlipCard({
   );
 }
 
-export default function FlipCardSet({ title, cards, onNext }: FlipCardSetProps) {
+export default function FlipCardSet({
+  title,
+  cards,
+  onNext,
+  _marginX,
+  _marginY,
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
+}: FlipCardSetProps) {
   const [flippedStates, setFlippedStates] = useState<boolean[]>(() =>
     new Array(cards.length).fill(false)
   );
   const [allFlipped, setAllFlipped] = useState(false);
+  const [autoCardIndex, setAutoCardIndex] = useState(0);
+
+  // Calculate time per card (flip + read)
+  const timePerCard = calculateReadingTime({
+    text: (cards[autoCardIndex]?.front || "") + " " + (cards[autoCardIndex]?.back || ""),
+    componentType: "FlipCardSet",
+    itemCount: 1,
+  });
+
+  // Auto-play hook for card flipping
+  const { isPaused: _cardPausedState } = useAutoPlay({
+    duration: timePerCard,
+    enabled: autoPlay && !isPaused && autoCardIndex < cards.length,
+    onComplete: () => {
+      if (autoCardIndex < cards.length - 1) {
+        // Move to next card
+        const nextIndex = autoCardIndex + 1;
+        setAutoCardIndex(nextIndex);
+        // Flip the next card
+        setFlippedStates((prev) => {
+          const newStates = [...prev];
+          newStates[nextIndex] = true;
+          return newStates;
+        });
+      } else {
+        // All cards processed
+        setAllFlipped(true);
+      }
+    },
+  });
+
+  // Auto-flip first card when auto-play starts
+  useEffect(() => {
+    if (autoPlay && !isPaused && autoCardIndex === 0 && !flippedStates[0]) {
+      setFlippedStates((prev) => {
+        const newStates = [...prev];
+        newStates[0] = true;
+        return newStates;
+      });
+    }
+  }, [autoPlay, isPaused, autoCardIndex]);
 
   const handleFlip = (index: number) => {
     setFlippedStates((prev) => {
       const newStates = [...prev];
-      newStates[index] = true;
+      newStates[index] = !newStates[index];
       return newStates;
     });
   };
@@ -92,6 +149,12 @@ export default function FlipCardSet({ title, cards, onNext }: FlipCardSetProps) 
 
   // Block tap until all cards flipped
   const handleGlobalTap = (e: React.MouseEvent) => {
+    if (autoPlay) {
+      togglePause?.();
+      e.stopPropagation();
+      return;
+    }
+    
     if (!allFlipped) {
       e.stopPropagation();
       return;
@@ -134,6 +197,22 @@ export default function FlipCardSet({ title, cards, onNext }: FlipCardSetProps) 
           ))}
         </div>
 
+        {/* Pause indicator */}
+        {autoPlay && isPaused && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+              className="bg-white/10 backdrop-blur-md rounded-full p-6 border border-white/20"
+            >
+              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            </motion.div>
+          </div>
+        )}
+
         {/* Hint appears only after all flipped */}
         <AnimatePresence>
           {allFlipped && (
@@ -143,7 +222,7 @@ export default function FlipCardSet({ title, cards, onNext }: FlipCardSetProps) 
               animate={{ opacity: [0, 1, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              Tap anywhere to continue
+              {autoPlay ? "Tap to pause/resume" : "Tap anywhere to continue"}
             </motion.div>
           )}
         </AnimatePresence>

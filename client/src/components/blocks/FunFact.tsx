@@ -10,10 +10,15 @@ interface FunFactProps {
   fact: string;
   illustration?: string;
   character: Character;
-  characterOrientation?: "left" | "right"; // screen side
+  characterOrientation?: "left" | "right";
   characterEmotion?: "happy" | "surprised" | "curious" | "neutral";
   characterDialogue?: string;
   onNext?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function FunFact({

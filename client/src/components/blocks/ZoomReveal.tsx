@@ -13,7 +13,12 @@ interface ZoomRevealProps {
   title: string;
   image: string;
   labels: Label[];
-  onNext?: () => void; // only triggered by Tap to Continue
+  onNext?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function ZoomReveal({ title, image, labels, onNext }: ZoomRevealProps) {

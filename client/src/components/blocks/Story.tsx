@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import { useAutoPlay } from "../../hooks/useAutoPlay";
+import { calculateReadingTime } from "../../utils/timeCalculation";
 
 interface CharacterExpression {
   image?: string;
@@ -26,6 +28,11 @@ interface StoryProps {
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function Story({
@@ -33,10 +40,33 @@ export default function Story({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: StoryProps) {
   const [index, setIndex] = useState(0);
-  const current = scenes[index];
   const [canTap, setCanTap] = useState(false);
+  const current = scenes[index];
+
+  // Calculate time for current scene
+  const sceneTime = current
+    ? calculateReadingTime({
+        text: current.dialogue,
+        hasImage: !!current.background,
+        componentType: "Story",
+        itemCount: 1,
+      })
+    : 3000;
+
+  // Auto-play for current scene
+  const { isPaused: _scenePausedState } = useAutoPlay({
+    duration: sceneTime,
+    enabled: autoPlay && !isPaused,
+    onComplete: () => {
+      handleNext();
+    },
+  });
 
   useEffect(() => {
     disableGlobalTap?.();
@@ -49,7 +79,8 @@ export default function Story({
   };
 
   const handleNext = () => {
-    if (!canTap) return; // ignore early taps
+    if (!canTap && autoPlay) return; // ignore early taps in auto-play
+    if (autoPlay && isPaused) return; // if paused globally, don't auto-advance
 
     if (index < scenes.length - 1) {
       setIndex((i) => i + 1);
@@ -57,6 +88,15 @@ export default function Story({
       disableGlobalTap?.();
     } else {
       onNext?.();
+    }
+  };
+
+  // Handle tap/click
+  const handleInteraction = () => {
+    if (autoPlay) {
+      togglePause?.();
+    } else {
+      handleNext();
     }
   };
 
@@ -73,40 +113,40 @@ export default function Story({
         return "bottom-10 right-10";
     }
   };
-const normalizedOrientation = current.orientation
-  ?.toLowerCase()
-  .replace(" ", "-") as
-  | "top-left"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-right";
+
+  const normalizedOrientation = current.orientation
+    ?.toLowerCase()
+    .replace(" ", "-") as
+    | "top-left"
+    | "top-right"
+    | "bottom-left"
+    | "bottom-right";
 
   // Pick character image based on scene emotion or fallback to first expression
   const getCharacterImage = (char?: Character, emotion?: string) => {
-  if (!char) return undefined;
+    if (!char) return undefined;
 
-  // 1) NEW FIX: If Strapi gives a direct image, use it
-  if (char.image) return char.image;
+    // 1) If Strapi gives a direct image, use it
+    if (char.image) return char.image;
 
-  // 2) Old system: expressions array
-  if (char.expressions?.length) {
-    return (
-      char.expressions.find((exp) => exp.emotionType === emotion)?.image ||
-      char.expressions[0].image
-    );
-  }
+    // 2) Old system: expressions array
+    if (char.expressions?.length) {
+      return (
+        char.expressions.find((exp) => exp.emotionType === emotion)?.image ||
+        char.expressions[0].image
+      );
+    }
 
-  return undefined;
-};
-
+    return undefined;
+  };
 
   const characterImage = getCharacterImage(current.character, current.emotion);
 
   return (
     <div
       className="relative w-full h-screen overflow-hidden text-white select-none"
-      onClick={handleNext}
-      onTouchStart={handleNext}
+      onClick={handleInteraction}
+      onTouchStart={handleInteraction}
     >
       {/* Background */}
       <AnimatePresence mode="wait">
@@ -132,10 +172,9 @@ const normalizedOrientation = current.orientation
           key={characterImage + index}
           src={characterImage}
           alt={current.character?.name || "Character"}
-         className={`absolute w-64 h-auto object-contain ${getCharacterPosition(
-  normalizedOrientation
-)}`}
-
+          className={`absolute w-64 h-auto object-contain ${getCharacterPosition(
+            normalizedOrientation
+          )}`}
           initial={{ opacity: 0, scale: 0.9, y: 30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9 }}
@@ -144,7 +183,7 @@ const normalizedOrientation = current.orientation
       )}
 
       {/* Dialogue box */}
-      <div className="absolute bottom-10 w-full px-8 flex justify-center">
+      <div className={`absolute bottom-10 w-full ${marginX} flex justify-center`}>
         <motion.div
           key={index}
           className="bg-black/40 backdrop-blur-md rounded-2xl p-6 max-w-3xl border border-white/10 shadow-lg"
@@ -165,6 +204,22 @@ const normalizedOrientation = current.orientation
           </div>
         </motion.div>
       </div>
+
+      {/* Pause indicator in auto-play */}
+      {autoPlay && isPaused && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ repeat: Infinity, duration: 1 }}
+            className="bg-white/10 backdrop-blur-md rounded-full p-6 border border-white/20"
+          >
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

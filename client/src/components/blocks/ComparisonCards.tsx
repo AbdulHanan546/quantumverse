@@ -1,6 +1,5 @@
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { motion } from "framer-motion";
-import { ArrowLeftRight } from "lucide-react";
 
 interface ComparisonItem {
   label: string;
@@ -12,7 +11,12 @@ interface ComparisonCardsProps {
   title: string;
   left: ComparisonItem;
   right: ComparisonItem;
-  onNext?: () => void; // optional callback for proceeding to next
+  onNext?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function ComparisonCards({ title, left, right, onNext }: ComparisonCardsProps) {

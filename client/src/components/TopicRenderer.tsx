@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useProgress } from "../context/ProgressContext";
+import { calculateComponentTime } from "../utils/timeCalculation";
+import { useAutoPlay } from "../hooks/useAutoPlay";
+import ProgressBar from "./ProgressBar";
 
 // Import all components
 import Heading from "./blocks/Heading";
@@ -24,9 +27,17 @@ import ConceptMap from "./blocks/ConceptMap";
 
 interface TopicRendererProps {
   components: any[];
+  autoPlay?: boolean; // Enable auto-play mode
+  marginX?: string; // Horizontal margin
+  marginY?: string; // Vertical margin
 }
 
-export default function TopicRenderer({ components }: TopicRendererProps) {
+export default function TopicRenderer({
+  components,
+  autoPlay = true,
+  marginX = "px-4",
+  marginY = "py-6",
+}: TopicRendererProps) {
   const [index, setIndex] = useState(0);
   const [allowTap, setAllowTap] = useState(true);
   const cooldownRef = useRef(false);
@@ -44,6 +55,18 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
   const { start, update, complete } = useProgress();
   const current = components[index];
 
+  // Calculate component duration for auto-play
+  const componentDuration = current ? calculateComponentTime(current) : 3000;
+
+  // Auto-play hook
+  const { isPaused, togglePause, elapsedTime } = useAutoPlay({
+    duration: componentDuration,
+    enabled: autoPlay,
+    onComplete: () => {
+      next();
+    },
+  });
+
   /** Next handler with debounce */
   const next = useCallback(() => {
     if (cooldownRef.current) return;
@@ -60,12 +83,17 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
     }
   }, [index, components.length, topicDocumentId, update, complete, navigate]);
 
-  /** Global tap handler */
+  /** Global tap handler - toggles pause/resume */
   useEffect(() => {
     const handleTap = (e: MouseEvent | TouchEvent) => {
       if (!allowTap || cooldownRef.current) return;
       if ((e.target as HTMLElement)?.closest("[data-child-interactive='true']")) return;
-      next();
+      
+      if (autoPlay) {
+        togglePause();
+      } else {
+        next();
+      }
     };
     window.addEventListener("click", handleTap);
     window.addEventListener("touchstart", handleTap);
@@ -73,7 +101,7 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
       window.removeEventListener("click", handleTap);
       window.removeEventListener("touchstart", handleTap);
     };
-  }, [allowTap, next]);
+  }, [allowTap, next, autoPlay, togglePause]);
 
   /** Start progress */
   useEffect(() => {
@@ -120,7 +148,17 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
     );
 
   /** Normalize props for Story / PointToPonder to handle old & new character schema */
-  const props = { ...current.props, onNext: next, disableGlobalTap, enableGlobalTap };
+  const props = {
+    ...current.props,
+    onNext: next,
+    disableGlobalTap,
+    enableGlobalTap,
+    marginX,
+    marginY,
+    autoPlay,
+    isPaused,
+    togglePause,
+  };
 
   // For Story
   if (current.type === "Story" && current.props.scenes) {
@@ -156,6 +194,9 @@ export default function TopicRenderer({ components }: TopicRendererProps) {
       className="w-full h-screen bg-black text-white overflow-hidden"
       data-child-interactive="false"
     >
+      {/* Progress Bar for Auto-play */}
+      {autoPlay && <ProgressBar duration={componentDuration} isActive={true} isPaused={isPaused} elapsedTime={elapsedTime} />}
+
       {/* Generated Slides Indicator */}
       {isGenerated && (
         <div className="fixed top-4 right-4 z-40 bg-blue-900/80 border border-blue-400/50 rounded-lg px-3 py-2 text-xs text-blue-200 flex items-center gap-2 backdrop-blur-sm">

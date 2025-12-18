@@ -6,7 +6,12 @@ interface ShortAnimationProps {
   title: string;
   gif: string;
   description: string;
-  onNext?: () => void; // callback for proceeding to next component
+  onNext?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function ShortAnimation({ title, gif, description, onNext }: ShortAnimationProps) {

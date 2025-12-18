@@ -4,10 +4,15 @@ import ReactMarkdown from "react-markdown";
 
 interface SliceProps {
   title: string;
-  content: string; // markdown text split by lines
+  content: string;
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function Slice({

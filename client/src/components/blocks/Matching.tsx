@@ -13,6 +13,11 @@ interface MatchingProps {
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function Matching({

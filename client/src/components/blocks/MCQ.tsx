@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAutoPlay } from "../../hooks/useAutoPlay";
+import { calculateReadingTime } from "../../utils/timeCalculation";
 
 interface Option {
   option: string;
@@ -16,6 +18,11 @@ interface MCQProps {
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function MCQ({
@@ -28,6 +35,11 @@ export default function MCQ({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: MCQProps) {
   const [selected, setSelected] = useState<"a" | "b" | "c" | "d" | null>(null);
   const [showReason, setShowReason] = useState(false);

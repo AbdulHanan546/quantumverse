@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAutoPlay } from "../../hooks/useAutoPlay";
+import { calculateReadingTime } from "../../utils/timeCalculation";
 
 interface TrueFalseProps {
   statement: string;
@@ -8,6 +10,11 @@ interface TrueFalseProps {
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function TrueFalse({

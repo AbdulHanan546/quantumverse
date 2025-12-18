@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import { useAutoPlay } from "../../hooks/useAutoPlay";
+import { calculateReadingTime } from "../../utils/timeCalculation";
 
 interface DiagramProps {
   illustration: string;
@@ -8,6 +10,11 @@ interface DiagramProps {
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function Diagram({
@@ -16,7 +23,28 @@ export default function Diagram({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: DiagramProps) {
+  // Calculate time for diagram
+  const diagramTime = calculateReadingTime({
+    text,
+    hasImage: true,
+    componentType: "Diagram",
+  });
+
+  // Auto-play hook
+  const { isPaused: _diagramPausedState } = useAutoPlay({
+    duration: diagramTime,
+    enabled: autoPlay && !isPaused,
+    onComplete: () => {
+      onNext?.();
+    },
+  });
+
   useEffect(() => {
     disableGlobalTap?.();
     const timer = setTimeout(() => {
@@ -25,11 +53,19 @@ export default function Diagram({
     return () => clearTimeout(timer);
   }, []);
 
+  const handleInteraction = () => {
+    if (autoPlay) {
+      togglePause?.();
+    } else {
+      onNext?.();
+    }
+  };
+
   return (
     <div
-      className="relative w-full h-screen bg-gradient-to-b from-[#090913] to-[#111122] text-white overflow-y-auto select-none cursor-pointer"
-      onClick={onNext}
-      onTouchStart={onNext}
+      className="relative w-full min-h-screen bg-gradient-to-b from-[#090913] to-[#111122] text-white select-none cursor-pointer flex flex-col justify-center items-center"
+      onClick={handleInteraction}
+      onTouchStart={handleInteraction}
     >
       {/* Subtle glowing aura */}
       <motion.div
@@ -38,7 +74,7 @@ export default function Diagram({
         transition={{ repeat: Infinity, duration: 8 }}
       />
 
-      <div className="relative flex flex-col justify-center items-center min-h-screen p-6 z-10">
+      <div className={`relative flex flex-col justify-center items-center min-h-screen p-6 z-10 ${marginX} ${marginY}`}>
         {/* Diagram Illustration */}
         <motion.img
           src={illustration}
@@ -59,6 +95,22 @@ export default function Diagram({
           <ReactMarkdown>{text}</ReactMarkdown>
         </motion.div>
       </div>
+
+      {/* Pause indicator */}
+      {autoPlay && isPaused && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ repeat: Infinity, duration: 1 }}
+            className="bg-white/10 backdrop-blur-md rounded-full p-6 border border-white/20"
+          >
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

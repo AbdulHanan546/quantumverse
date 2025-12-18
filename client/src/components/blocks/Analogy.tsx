@@ -6,9 +6,21 @@ interface AnalogyProps {
   analogy: string;
   point: string;
   onNext?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  _isPaused?: boolean;
+  togglePause?: () => void;
 }
 
-export default function Analogy({ analogy, point, onNext }: AnalogyProps) {
+export default function Analogy({ 
+  analogy, 
+  point, 
+  onNext,
+  autoPlay = false,
+  _isPaused = false,
+  togglePause = () => {},
+}: AnalogyProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -123,10 +135,18 @@ export default function Analogy({ analogy, point, onNext }: AnalogyProps) {
     };
   }, []);
 
+  const handleTap = () => {
+    if (autoPlay) {
+      togglePause?.();
+    } else {
+      onNext?.();
+    }
+  };
+
   return (
     <div
       ref={containerRef}
-      onClick={onNext}
+      onClick={handleTap}
       className="relative w-full h-screen flex flex-col justify-center items-center text-white
                  bg-gradient-to-b from-[#090910] via-[#0e0e1a] to-[#121225] overflow-hidden cursor-pointer"
     >

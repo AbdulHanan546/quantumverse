@@ -6,6 +6,11 @@ interface ConceptMapProps {
   center: string;
   links: string[];
   onNext?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 export default function ConceptMap({ title, center, links, onNext }: ConceptMapProps) {

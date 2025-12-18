@@ -23,6 +23,11 @@ interface StackOrderProps {
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
+  marginX?: string;
+  marginY?: string;
+  autoPlay?: boolean;
+  isPaused?: boolean;
+  togglePause?: () => void;
 }
 
 function SortableItem({ id, statement, illustration }: Block & { id: string }) {
