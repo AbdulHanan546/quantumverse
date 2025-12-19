@@ -87,7 +87,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = useCallback(() => {
     tokenStorage.clear();
     setUser(null);
-    navigate('/signin', { replace: true });
+    navigate('/', { replace: true });
   }, [navigate]);
 
   const value = useMemo<AuthContextValue>(

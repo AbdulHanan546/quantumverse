@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+  --font-heading: 'BBH Bogle', sans-serif;
+}
+
 body {
   margin: 0;
   background: #000;

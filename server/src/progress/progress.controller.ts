@@ -17,6 +17,12 @@ export class ProgressController {
     return this.progress.getAllForUser(userId);
   }
 
+  @Get('stats')
+  async stats(@Req() req: any) {
+    const userId: number = req.user.id;
+    return this.progress.getUserStats(userId);
+  }
+
   @Get('topic/:topicDocumentId')
   async getTopic(@Req() req: any, @Param('topicDocumentId') topicDocumentId: string) {
     const userId: number = req.user.id;

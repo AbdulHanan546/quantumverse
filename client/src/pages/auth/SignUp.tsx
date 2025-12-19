@@ -107,7 +107,7 @@ export default function SignUp() {
           <div className="text-sm text-slate-400 text-center">
             Already have an account?{' '}
             <Link
-              to="/signin"
+              to="/"
               className="text-green-400 hover:text-green-300 underline underline-offset-4"
             >
               Sign in

@@ -1,9 +1,7 @@
-import React, { useState } from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ProgressProvider } from "./context/ProgressContext";
-import SignIn from "./pages/auth/SignIn";
-import SignUp from "./pages/auth/SignUp";
 import StudentHome from "./pages/student/Home";
 import ChapterTopics from "./pages/student/ChapterTopic";
 import Navbar from "./components/Navbar";
@@ -11,10 +9,20 @@ import TopicRenderer from "./components/TopicRenderer";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./index.css";
 import { fetchTopic } from "./services/cms";
+import LandingPage from "./pages/landing-page/LandingPage";
+import { getMyProgress, getMyStats } from "./api/progress";
+import { Profile } from "./components/Profile";
 
 function AppWrapper() {
   const [topicData, setTopicData] = useState<any | null>(null);
   const location = useLocation();
+
+  useEffect(() => {
+    async function f() {
+      const data = await getMyStats();
+      console.log("My data", data);
+    }; f();
+  })
 
   const handleTopicSelect = async (documentId: string) => {
     try {
@@ -38,17 +46,12 @@ function TopicRendererWrapper() {
   );
 }
   // Hide Navbar for any topic route
-  const hideNavbar = location.pathname.startsWith("/topic/");
+  // const hideNavbar = location.pathname.startsWith("/topic/") || location.pathname === '/';
 
   return (
     <div className="w-full min-h-screen bg-black text-white">
-      {!hideNavbar && <Navbar />}
 
       <Routes>
-        {/* Auth Pages */}
-        <Route path="/signin" element={<SignIn />} />
-        <Route path="/signup" element={<SignUp />} />
-
         {/* Student Home → CHAPTER LIST */}
         <Route
           path="/student"
@@ -77,9 +80,16 @@ function TopicRendererWrapper() {
           }
         />
 
+        <Route
+          path="/profile"
+          element={
+            <Profile />
+          }
+        />
+
         {/* Default Routes */}
-        <Route path="/" element={<SignIn />} />
-        <Route path="*" element={<SignIn />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>
   );
