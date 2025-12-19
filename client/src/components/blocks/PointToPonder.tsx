@@ -1,4 +1,7 @@
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
 
 interface Character {
   name: string;
@@ -15,7 +18,7 @@ interface PointToPonderProps {
   marginX?: string;
   marginY?: string;
   autoPlay?: boolean;
-  _isPaused?: boolean;
+  isPaused?: boolean;
   togglePause?: () => void;
 }
 
@@ -25,10 +28,42 @@ export default function PointToPonder({
   characterOrientation = "right",
   characterEmotion,
   onNext,
+  marginX = "px-4",
+  marginY = "py-6",
   autoPlay = false,
-  _isPaused = false,
+  isPaused = false,
   togglePause = () => {},
 }: PointToPonderProps) {
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showContinueButton, setShowContinueButton] = useState(false);
+
+  const totalDuration = calculateReadingTime({
+    text: point,
+    componentType: "PointToPonder",
+  });
+
+  // Reset elapsed time and button state when component mounts
+  useEffect(() => {
+    setElapsedTime(0);
+    setShowContinueButton(false);
+  }, []);
+
+  // Auto-play timer with progress tracking
+  useEffect(() => {
+    if (!autoPlay || isPaused) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => {
+        const newTime = prev + 50;
+        if (newTime >= totalDuration) {
+          setShowContinueButton(true);
+        }
+        return newTime;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [autoPlay, isPaused, totalDuration]);
   
   const characterImage =
     character?.expressions?.find((exp) => exp?.emotionType === characterEmotion)?.image ||
@@ -45,13 +80,21 @@ export default function PointToPonder({
     }
   };
 
+  const handleContinue = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onNext?.();
+  };
+
   return (
     <div
-      className="relative w-full h-screen flex flex-col justify-end items-center 
+      className={`relative w-full h-screen flex flex-col justify-end items-center 
         bg-gradient-to-b from-[#08080f] via-[#0d0d1a] to-[#141422]
-        overflow-hidden text-white select-none px-4 sm:px-6 pb-24 sm:pb-28"
-      onClick={handleTap}
-      onTouchStart={handleTap}
+        overflow-hidden text-white select-none ${marginX} ${marginY}`}
+      data-child-interactive="true"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        handleTap();
+      }}
     >
       {/* Soft Background Glow Layers */}
       <motion.div
@@ -106,6 +149,35 @@ export default function PointToPonder({
           {point}
         </p>
       </motion.div>
+
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+        <ProgressBar
+          duration={totalDuration}
+          isActive={true}
+          isPaused={isPaused}
+          elapsedTime={elapsedTime}
+        />
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          onPointerDown={(e) => {
+            // Prevent root handler from toggling pause before click
+            e.stopPropagation();
+          }}
+          onClick={handleContinue}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
+      )}
     </div>
   );
 }

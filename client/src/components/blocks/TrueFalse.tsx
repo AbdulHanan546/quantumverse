@@ -24,6 +24,11 @@ export default function TrueFalse({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: TrueFalseProps) {
   const [selected, setSelected] = useState<null | boolean>(null);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -58,8 +63,8 @@ export default function TrueFalse({
 
   return (
     <div
-      className="relative w-full h-screen flex flex-col justify-center items-center 
-      text-white bg-gradient-to-b from-[#0a0a0f] via-[#0d0d18] to-[#12122a] cursor-pointer select-none"
+      className={`relative w-full h-screen flex flex-col justify-center items-center 
+      text-white bg-gradient-to-b from-[#0a0a0f] via-[#0d0d18] to-[#12122a] cursor-pointer select-none ${marginX} ${marginY}`}
       onClick={handleTap}
       onTouchStart={handleTap}
     >

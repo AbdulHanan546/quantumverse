@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
 
 interface HeadingProps {
   title: string;
@@ -23,6 +25,11 @@ export default function Heading({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: HeadingProps) {
   const lines = (description ?? "")
     .split("\n")
@@ -32,16 +39,86 @@ export default function Heading({
   const [phase, setPhase] = useState<"title" | "description">("title");
   const [lineIndex, setLineIndex] = useState(0);
   const [showTapHint, setShowTapHint] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showContinueButton, setShowContinueButton] = useState(false);
 
-  // Disable global tap while local tap is active
+  // Calculate reading times using algorithm
+  const titleTime = calculateReadingTime({ text: title, componentType: "Heading" });
+  const descriptionText = lines.join(" ");
+  const descriptionTime = calculateReadingTime({ 
+    text: descriptionText, 
+    componentType: "Heading" 
+  });
+  const timePerLine = lines.length > 0 ? descriptionTime / lines.length : descriptionTime;
+  const totalDuration = titleTime + descriptionTime;
+
+  // Reset elapsed time when component mounts
   useEffect(() => {
-    disableGlobalTap?.();
-    return () => enableGlobalTap?.();
+    setElapsedTime(0);
+    setShowContinueButton(false);
   }, []);
+
+  // Handle global tap control
+  useEffect(() => {
+    if (autoPlay) {
+      // In autoPlay: enable global tap for pause/resume
+      enableGlobalTap?.();
+    } else {
+      // In manual mode: disable global tap, we handle it locally
+      disableGlobalTap?.();
+    }
+    return () => enableGlobalTap?.();
+  }, [autoPlay, disableGlobalTap, enableGlobalTap]);
+
+  // Auto-advance in autoPlay mode with pause support
+  useEffect(() => {
+    if (!autoPlay || isPaused) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => {
+        const newTime = prev + 50;
+        // Show continue button when progress completes
+        if (newTime >= totalDuration) {
+          setShowContinueButton(true);
+        }
+        return newTime;
+      });
+    }, 50);
+
+    if (phase === "title") {
+      const timer = setTimeout(() => setPhase("description"), titleTime);
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
+    }
+
+    if (phase === "description" && lineIndex < lines.length - 1) {
+      const timer = setTimeout(() => setLineIndex((i) => i + 1), timePerLine);
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
+    }
+
+    if (phase === "description" && lineIndex === lines.length - 1) {
+      // Last line - don't auto-advance, wait for user to click continue button
+      return () => clearInterval(interval);
+    }
+
+    return () => clearInterval(interval);
+  }, [autoPlay, isPaused, phase, lineIndex, lines.length, titleTime, timePerLine, onNext]);
 
   const handleTap = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
 
+    // In autoPlay mode, toggle pause/resume
+    if (autoPlay) {
+      togglePause();
+      return;
+    }
+
+    // Manual mode only
     if (phase === "title") {
       setPhase("description");
       setShowTapHint(false);
@@ -56,13 +133,13 @@ export default function Heading({
     }
   };
 
-  // Subtle “tap” hint for first phase
+  // Subtle "tap" hint for first phase (manual mode only)
   useEffect(() => {
-    if (phase === "title") {
+    if (!autoPlay && phase === "title") {
       const t = setTimeout(() => setShowTapHint(true), 1000);
       return () => clearTimeout(t);
     }
-  }, [phase]);
+  }, [autoPlay, phase]);
 
   return (
     <div
@@ -92,7 +169,7 @@ export default function Heading({
       </AnimatePresence>
 
       {/* 🧭 Content */}
-      <div className="relative z-10 max-w-4xl px-8">
+      <div className={`relative z-10 max-w-4xl ${marginX}`}>
         <AnimatePresence mode="wait">
           {phase === "title" ? (
             <motion.h1
@@ -120,8 +197,8 @@ export default function Heading({
         </AnimatePresence>
       </div>
 
-      {/* Tap hint */}
-      {showTapHint && phase === "title" && (
+      {/* Tap hint - manual mode only */}
+      {showTapHint && !autoPlay && phase === "title" && (
         <motion.div
           className="absolute bottom-10 text-sm text-gray-400 tracking-wider"
           initial={{ opacity: 0 }}
@@ -130,6 +207,34 @@ export default function Heading({
         >
           Tap to continue
         </motion.div>
+      )}
+
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+        <ProgressBar
+          duration={totalDuration}
+          isActive={true}
+          isPaused={isPaused}
+          elapsedTime={elapsedTime}
+        />
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
       )}
     </div>
   );

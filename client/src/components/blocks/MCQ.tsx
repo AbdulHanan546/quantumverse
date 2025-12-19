@@ -73,8 +73,8 @@ export default function MCQ({
 
   return (
     <div
-      className="relative w-full h-screen flex flex-col justify-center items-center text-white 
-      bg-gradient-to-b from-[#0a0a0f] via-[#0d0d18] to-[#12122a] px-6 select-none overflow-hidden cursor-pointer"
+      className={`relative w-full h-screen flex flex-col justify-center items-center text-white 
+      bg-gradient-to-b from-[#0a0a0f] via-[#0d0d18] to-[#12122a] ${marginX} select-none overflow-hidden cursor-pointer`}
       onClick={handleTap}
       onTouchStart={handleTap}
     >

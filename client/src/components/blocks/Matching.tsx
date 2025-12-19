@@ -27,6 +27,11 @@ export default function Matching({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: MatchingProps) {
   const shuffledLeft = [...options].map((o) => o.left);
   const shuffledRight = [...options].map((o) => o.right).sort(() => Math.random() - 0.5);
@@ -81,8 +86,8 @@ export default function Matching({
 
   return (
     <div
-      className="relative w-full h-screen flex flex-col items-center justify-center 
-      bg-gradient-to-b from-[#0a0a0f] via-[#0e0e18] to-[#121225] text-white px-8 select-none cursor-pointer"
+      className={`relative w-full h-screen flex flex-col items-center justify-center 
+      bg-gradient-to-b from-[#0a0a0f] via-[#0e0e18] to-[#121225] text-white ${marginX} select-none cursor-pointer`}
       onClick={handleTapContinue}
       onTouchStart={handleTapContinue}
     >

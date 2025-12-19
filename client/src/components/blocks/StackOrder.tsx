@@ -70,6 +70,11 @@ export default function StackOrder({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: StackOrderProps) {
   const [items, setItems] = useState(() =>
     (blocks ?? [])
@@ -112,7 +117,7 @@ export default function StackOrder({
 
   return (
     <div
-      className="relative w-full h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#090913] to-[#111122] text-white select-none"
+      className={`relative w-full h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#090913] to-[#111122] text-white select-none ${marginX} ${marginY}`}
       onClick={handleTap}
       onTouchStart={handleTap}
     >

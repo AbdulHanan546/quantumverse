@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { useAutoPlay } from "../../hooks/useAutoPlay";
 import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
+import { useRef } from "react";
 
 interface CharacterExpression {
   image?: string;
@@ -46,27 +47,64 @@ export default function Story({
   togglePause = () => {},
 }: StoryProps) {
   const [index, setIndex] = useState(0);
-  const [canTap, setCanTap] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showContinueButton, setShowContinueButton] = useState(false);
   const current = scenes[index];
+  const completedRef = useRef(false);
 
   // Calculate time for current scene
-  const sceneTime = current
-    ? calculateReadingTime({
-        text: current.dialogue,
-        hasImage: !!current.background,
-        componentType: "Story",
-        itemCount: 1,
-      })
-    : 3000;
+ const sceneDurations = scenes.map((scene) =>
+  calculateReadingTime({
+    text: scene.dialogue,
+    hasImage: !!scene.background,
+    componentType: "Story",
+    itemCount: scenes.length,
+  })
+);
 
-  // Auto-play for current scene
-  const { isPaused: _scenePausedState } = useAutoPlay({
-    duration: sceneTime,
-    enabled: autoPlay && !isPaused,
-    onComplete: () => {
-      handleNext();
-    },
-  });
+const totalDuration = sceneDurations.reduce((a, b) => a + b, 0);
+
+  
+ 
+
+
+  // Auto-play timer with progress tracking
+useEffect(() => {
+  if (!autoPlay || isPaused) return;
+
+  completedRef.current = false;
+  let start = performance.now();
+  let rafId: number;
+
+  const tick = (now: number) => {
+    if (completedRef.current) return;
+
+    const elapsed = now - start;
+    setElapsedTime(elapsed);
+
+    let accumulated = 0;
+    for (let i = 0; i < sceneDurations.length; i++) {
+      accumulated += sceneDurations[i];
+      if (elapsed < accumulated) {
+        setIndex(i);
+        break;
+      }
+    }
+
+    if (elapsed >= totalDuration) {
+      setElapsedTime(totalDuration);
+      setShowContinueButton(true);
+      completedRef.current = true;
+      return;
+    }
+
+    rafId = requestAnimationFrame(tick);
+  };
+
+  rafId = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(rafId);
+}, [autoPlay, isPaused]);
+
 
   useEffect(() => {
     disableGlobalTap?.();
@@ -74,17 +112,16 @@ export default function Story({
   }, []);
 
   const handleAnimationComplete = () => {
-    setCanTap(true);
     enableGlobalTap?.();
   };
 
-  const handleNext = () => {
-    if (!canTap && autoPlay) return; // ignore early taps in auto-play
-    if (autoPlay && isPaused) return; // if paused globally, don't auto-advance
+  const handleNext = (opts?: { force?: boolean }) => {
+    const force = opts?.force;
+
+    if (!force && autoPlay && isPaused) return; // if paused globally, don't auto-advance
 
     if (index < scenes.length - 1) {
       setIndex((i) => i + 1);
-      setCanTap(false); // reset for next scene
       disableGlobalTap?.();
     } else {
       onNext?.();
@@ -92,13 +129,26 @@ export default function Story({
   };
 
   // Handle tap/click
-  const handleInteraction = () => {
+  const handleInteraction = (e?: React.PointerEvent) => {
     if (autoPlay) {
+      // If Continue button is visible and target is the button, do not toggle pause
+      const targetEl = (e?.target as HTMLElement) || null;
+      if (showContinueButton && targetEl && targetEl.closest('[data-continue="true"]')) {
+        return;
+      }
       togglePause?.();
     } else {
       handleNext();
     }
   };
+
+ const handleContinue = (e: React.MouseEvent) => {
+  e.stopPropagation();
+  completedRef.current = false;
+  setShowContinueButton(false);
+  onNext?.();
+};
+
 
   const getCharacterPosition = (orientation?: string) => {
     switch (orientation) {
@@ -145,8 +195,11 @@ export default function Story({
   return (
     <div
       className="relative w-full h-screen overflow-hidden text-white select-none"
-      onClick={handleInteraction}
-      onTouchStart={handleInteraction}
+      data-child-interactive="true"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        handleInteraction(e);
+      }}
     >
       {/* Background */}
       <AnimatePresence mode="wait">
@@ -219,6 +272,37 @@ export default function Story({
             </svg>
           </motion.div>
         </div>
+      )}
+
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+       <ProgressBar
+  duration={totalDuration}
+  elapsedTime={elapsedTime}
+  isActive={autoPlay}
+  isPaused={isPaused}
+/>
+
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          data-continue="true"
+          onClick={handleContinue}
+          onPointerDown={(e) => {
+            // Prevent root handler from toggling pause before click
+            e.stopPropagation();
+          }}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
       )}
     </div>
   );

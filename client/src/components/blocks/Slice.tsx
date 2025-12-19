@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
 
 interface SliceProps {
   title: string;
@@ -21,43 +23,90 @@ export default function Slice({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: SliceProps) {
   const lines = content.split("\n").filter((line) => line.trim() !== "");
-  const [focusIndex, setFocusIndex] = useState(0); // which line is in focus
-  const [visibleLines, setVisibleLines] = useState(2); // show 2 lines at a time
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [showTapHint, setShowTapHint] = useState(false);
+  const [showContinueButton, setShowContinueButton] = useState(false);
+
+  // Calculate total duration based on all lines
+  const totalDuration = calculateReadingTime({
+    text: content,
+    componentType: "Slice",
+    itemCount: lines.length,
+  });
+
+  // Time per line
+  const timePerLine = totalDuration / Math.max(lines.length, 1);
+
+  // Derive focusIndex and visibleLines from elapsedTime
+  const focusIndex = Math.floor(elapsedTime / timePerLine);
+  const visibleLines = Math.min(Math.max(focusIndex + 2, 2), lines.length);
 
   useEffect(() => {
     disableGlobalTap?.();
     return () => enableGlobalTap?.();
   }, []);
 
-  const handleTap = (e: React.MouseEvent | React.TouchEvent) => {
+  // Auto-play timer: continuous elapsed time for whole component
+  useEffect(() => {
+    if (!autoPlay || isPaused || elapsedTime >= totalDuration) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => {
+        const next = prev + 50;
+        if (next >= totalDuration) {
+          setShowContinueButton(true);
+          return totalDuration;
+        }
+        return next;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [autoPlay, isPaused, elapsedTime, totalDuration]);
+
+  const handleTap = (e: React.PointerEvent) => {
     e.stopPropagation();
 
-    if (focusIndex < lines.length - 1) {
-      // Shift focus and possibly reveal new line
-      setFocusIndex((prev) => prev + 1);
-      if (focusIndex + 2 > visibleLines && visibleLines < lines.length) {
-        setVisibleLines((v) => v + 1);
+    if (autoPlay) {
+      const targetEl = e.target as HTMLElement;
+      if (targetEl && targetEl.closest('[data-continue="true"]')) {
+        return; // let the button handler manage
       }
+      togglePause?.();
+      return;
+    }
+
+    // Manual mode: advance through lines
+    if (focusIndex < lines.length - 1) {
+      setElapsedTime((prev) => prev + timePerLine);
     } else {
       enableGlobalTap?.();
       onNext?.();
     }
   };
 
-  // tap hint
+  // tap hint - only show in manual mode
   useEffect(() => {
+    if (autoPlay) return;
     const t = setTimeout(() => setShowTapHint(true), 1000);
     return () => clearTimeout(t);
-  }, []);
+  }, [autoPlay]);
 
   return (
     <div
       className="relative w-full h-screen flex flex-col items-center justify-center text-center text-white select-none overflow-hidden cursor-pointer"
-      onClick={handleTap}
-      onTouchStart={handleTap}
+      data-child-interactive="true"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        handleTap(e);
+      }}
     >
       {/* 🎨 Background (same as Heading) */}
       <motion.div
@@ -70,7 +119,7 @@ export default function Slice({
       </motion.div>
 
       {/* 🧭 Content */}
-      <div className="relative z-10 max-w-4xl px-8 flex flex-col items-center">
+      <div className={`relative z-10 max-w-4xl ${marginX} flex flex-col items-center`}>
         {/* Title */}
         <motion.h2
           className="text-4xl font-bold text-indigo-300 mb-10"
@@ -112,7 +161,7 @@ export default function Slice({
       </div>
 
       {/* Tap hint */}
-      {showTapHint && (
+      {showTapHint && !autoPlay && (
         <motion.div
           className="absolute bottom-10 text-sm text-gray-400 tracking-wider"
           initial={{ opacity: 0 }}
@@ -121,6 +170,54 @@ export default function Slice({
         >
           Tap to continue
         </motion.div>
+      )}
+
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+        <ProgressBar
+          duration={totalDuration}
+          isActive={true}
+          isPaused={isPaused}
+          elapsedTime={elapsedTime}
+        />
+      )}
+
+      {/* Pause indicator */}
+      {autoPlay && isPaused && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ repeat: Infinity, duration: 1 }}
+            className="bg-white/10 backdrop-blur-md rounded-full p-6 border border-white/20"
+          >
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          data-continue="true"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
       )}
     </div>
   );

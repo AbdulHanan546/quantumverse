@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
 
 interface AnalogyProps {
   analogy: string;
@@ -9,7 +11,7 @@ interface AnalogyProps {
   marginX?: string;
   marginY?: string;
   autoPlay?: boolean;
-  _isPaused?: boolean;
+  isPaused?: boolean;
   togglePause?: () => void;
 }
 
@@ -17,12 +19,41 @@ export default function Analogy({
   analogy, 
   point, 
   onNext,
+  marginX = "px-4",
+  marginY = "py-6",
   autoPlay = false,
-  _isPaused = false,
+  isPaused = false,
   togglePause = () => {},
 }: AnalogyProps) {
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showContinueButton, setShowContinueButton] = useState(false);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Calculate total duration
+  const totalDuration = calculateReadingTime({
+    text: `${analogy} ${point}`,
+    componentType: "Analogy",
+  });
+
+  // Auto-play timer
+  useEffect(() => {
+    if (!autoPlay || isPaused || elapsedTime >= totalDuration) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => {
+        const next = prev + 50;
+        if (next >= totalDuration) {
+          setShowContinueButton(true);
+          return totalDuration;
+        }
+        return next;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [autoPlay, isPaused, elapsedTime, totalDuration]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -147,8 +178,8 @@ export default function Analogy({
     <div
       ref={containerRef}
       onClick={handleTap}
-      className="relative w-full h-screen flex flex-col justify-center items-center text-white
-                 bg-gradient-to-b from-[#090910] via-[#0e0e1a] to-[#121225] overflow-hidden cursor-pointer"
+      className={`relative w-full h-screen flex flex-col justify-center items-center text-white
+                 bg-gradient-to-b from-[#090910] via-[#0e0e1a] to-[#121225] overflow-hidden cursor-pointer ${marginX} ${marginY}`}
     >
       {/* Animated background */}
       <motion.div
@@ -183,13 +214,60 @@ export default function Analogy({
       </motion.div>
 
       {/* Tap hint */}
-      <motion.div
-        className="absolute bottom-8 text-gray-400 text-sm tracking-widest"
-        animate={{ opacity: [0, 1, 0] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      >
-        Tap to continue
-      </motion.div>
+      {!autoPlay && (
+        <motion.div
+          className="absolute bottom-8 text-gray-400 text-sm tracking-widest"
+          animate={{ opacity: [0, 1, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          Tap to continue
+        </motion.div>
+      )}
+
+      {/* Pause indicator */}
+      {autoPlay && isPaused && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ repeat: Infinity, duration: 1 }}
+            className="bg-white/10 backdrop-blur-md rounded-full p-6 border border-white/20"
+          >
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+        <ProgressBar
+          duration={totalDuration}
+          isActive={true}
+          isPaused={isPaused}
+          elapsedTime={elapsedTime}
+        />
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          data-continue="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 z-40"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
+      )}
     </div>
   );
 }

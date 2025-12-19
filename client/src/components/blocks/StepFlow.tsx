@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowDown } from "lucide-react";
-import { useAutoPlay } from "../../hooks/useAutoPlay";
 import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
 
 interface StepFlowProps {
   title: string;
@@ -10,8 +10,8 @@ interface StepFlowProps {
   onNext?: () => void;
   disableGlobalTap?: () => void;
   enableGlobalTap?: () => void;
-  _marginX?: string;
-  _marginY?: string;
+  marginX?: string;
+  marginY?: string;
   autoPlay?: boolean;
   isPaused?: boolean;
   togglePause?: () => void;
@@ -23,39 +23,79 @@ export default function StepFlow({
   onNext,
   disableGlobalTap,
   enableGlobalTap,
-  _marginX,
-  _marginY,
+  marginX = "px-4",
+  marginY = "py-6",
   autoPlay = false,
   isPaused = false,
   togglePause = () => {},
 }: StepFlowProps) {
-  const [visibleSteps, setVisibleSteps] = useState(autoPlay ? 0 : 1);
-  const [showContinueHint, setShowContinueHint] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showContinueButton, setShowContinueButton] = useState(false);
 
   // Track pointer movement to detect scrolling vs tapping
   const pointerStartY = useRef(0);
   const moved = useRef(false);
 
-  // Time per step
-  const timePerStep = calculateReadingTime({ 
-    text: steps[visibleSteps] || "", 
-    componentType: "StepFlow", 
-    itemCount: 1 
+  // Ref for auto-scrolling to latest step
+  const stepsContainerRef = useRef<HTMLDivElement>(null);
+  const lastVisibleStepsRef = useRef(0);
+
+  // Calculate total duration for all steps
+  const totalDuration = calculateReadingTime({
+    text: steps.join(" "),
+    componentType: "StepFlow",
+    itemCount: steps.length,
   });
 
-  // Auto-play hook
-  const { isPaused: _stepPausedState } = useAutoPlay({
-    duration: timePerStep,
-    enabled: autoPlay && !isPaused && visibleSteps < steps.length,
-    onComplete: () => {
-      setVisibleSteps((v) => v + 1);
-    },
-  });
+  // Time per step
+  const timePerStep = totalDuration / Math.max(steps.length, 1);
+
+  // Derive visibleSteps from elapsedTime
+  const visibleSteps = Math.min(Math.max(Math.floor(elapsedTime / timePerStep) + 1, autoPlay ? 0 : 1), steps.length);
 
   useEffect(() => {
     disableGlobalTap?.();
     return () => enableGlobalTap?.();
   }, []);
+
+  // Auto-play timer: continuous elapsed time for whole component
+  useEffect(() => {
+    if (!autoPlay || isPaused || elapsedTime >= totalDuration) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => {
+        const next = prev + 50;
+        if (next >= totalDuration) {
+          setShowContinueButton(true);
+          return totalDuration;
+        }
+        return next;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [autoPlay, isPaused, elapsedTime, totalDuration]);
+
+  // Auto-scroll to latest visible step
+  useEffect(() => {
+    if (!autoPlay || !stepsContainerRef.current) return;
+
+    if (visibleSteps > lastVisibleStepsRef.current) {
+      lastVisibleStepsRef.current = visibleSteps;
+      
+      // Scroll to the newest step smoothly
+      setTimeout(() => {
+        const parent = stepsContainerRef.current?.parentElement;
+        if (parent) {
+          const stepElements = parent.querySelectorAll('[data-step-index]');
+          const latestStep = stepElements[visibleSteps - 1];
+          if (latestStep) {
+            latestStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 100);
+    }
+  }, [visibleSteps, autoPlay]);
 
   // TAP HANDLER (pointer-based, not click)
   const handlePointerDown = (e: any) => {
@@ -68,36 +108,32 @@ export default function StepFlow({
     if (Math.abs(y - pointerStartY.current) > 10) moved.current = true; // scrolling happened
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     if (moved.current) return; // do NOT trigger tap on scroll
 
     if (autoPlay) {
+      const targetEl = e.target as HTMLElement;
+      if (targetEl && targetEl.closest('[data-continue="true"]')) {
+        return; // let the button handler manage
+      }
       togglePause?.();
       return;
     }
 
-    // Reveal next step
+    // Manual mode: reveal next step
     if (visibleSteps < steps.length) {
-      setVisibleSteps((v) => v + 1);
+      setElapsedTime((prev) => prev + timePerStep);
       return;
     }
 
     // All steps shown
-    setShowContinueHint(false);
     enableGlobalTap?.();
     onNext?.();
   };
 
-  useEffect(() => {
-    if (visibleSteps === steps.length) {
-      const t = setTimeout(() => setShowContinueHint(true), 800);
-      return () => clearTimeout(t);
-    }
-  }, [visibleSteps, steps.length]);
-
   return (
     <div
-      className="relative w-full min-h-screen flex flex-col bg-gradient-to-b from-[#0a0a16] via-[#0f0f24] to-[#151530] text-white select-none overflow-hidden"
+      className={`relative w-full h-screen bg-gradient-to-b from-[#0a0a16] via-[#0f0f24] to-[#151530] flex flex-col text-white select-none overflow-hidden ${marginX} ${marginY}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -107,13 +143,17 @@ export default function StepFlow({
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1 }}
-        className="text-4xl md:text-5xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-300 drop-shadow-xl p-6 z-10 sticky top-0 bg-[#0a0a16] text-center"
+        className="text-4xl md:text-5xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-300 drop-shadow-xl p-6 z-20 flex-shrink-0 text-center"
       >
         {title}
       </motion.h3>
 
-      {/* Dynamic scrollable steps container */}
-      <div className="relative flex-1 px-4 sm:px-8 py-8 space-y-12">
+      {/* Scrollable steps container */}
+      <div
+        ref={stepsContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden relative w-full px-4 sm:px-8 py-8 space-y-12 [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
         {/* Background pulse */}
         <motion.div
           className="absolute inset-0 bg-gradient-radial from-indigo-700/20 via-transparent to-black"
@@ -123,7 +163,8 @@ export default function StepFlow({
 
         {/* Vertical timeline */}
         <motion.div
-          className="absolute left-10 top-0 bottom-0 w-[3px] rounded-full hidden md:block bg-gradient-to-b from-cyan-400 via-purple-500 to-pink-500"
+          className="absolute left-10 top-0 w-[3px] rounded-full md:block bg-gradient-to-b from-cyan-400 via-purple-500 to-pink-500"
+          style={{ height: `${visibleSteps * 7.7}rem` }}
           animate={{ opacity: [0.3, 0.8, 0.3] }}
           transition={{ duration: 6, repeat: Infinity }}
         />
@@ -132,6 +173,7 @@ export default function StepFlow({
           <AnimatePresence key={i}>
             {i < visibleSteps && (
               <motion.div
+                data-step-index={i}
                 initial={{ opacity: 0, x: -50 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
@@ -182,14 +224,47 @@ export default function StepFlow({
         </div>
       )}
 
-      {showContinueHint && (
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+        <ProgressBar
+          duration={totalDuration}
+          isActive={true}
+          isPaused={isPaused}
+          elapsedTime={elapsedTime}
+        />
+      )}
+
+      {/* Tap hint in manual mode */}
+      {!autoPlay && visibleSteps === steps.length && (
         <motion.div
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm text-gray-400 tracking-widest"
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm text-gray-400 tracking-widest z-40"
           animate={{ opacity: [0, 1, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
-          {autoPlay ? "Tap to pause/resume" : "Tap to continue"}
+          {!autoPlay && "Tap to continue"}
         </motion.div>
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          data-continue="true"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 z-40"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
       )}
     </div>
   );

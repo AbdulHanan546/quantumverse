@@ -3,7 +3,6 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useProgress } from "../context/ProgressContext";
 import { calculateComponentTime } from "../utils/timeCalculation";
 import { useAutoPlay } from "../hooks/useAutoPlay";
-import ProgressBar from "./ProgressBar";
 
 // Import all components
 import Heading from "./blocks/Heading";
@@ -36,10 +35,10 @@ export default function TopicRenderer({
   components,
   autoPlay = true,
   marginX = "px-4",
-  marginY = "py-6",
+  marginY = "py-12",
 }: TopicRendererProps) {
   const [index, setIndex] = useState(0);
-  const [allowTap, setAllowTap] = useState(true);
+  const [allowTap, setAllowTap] = useState(false);
   const cooldownRef = useRef(false);
 
   const { slug } = useParams();
@@ -103,14 +102,7 @@ export default function TopicRenderer({
     };
   }, [allowTap, next, autoPlay, togglePause]);
 
-  /** Start progress */
-  useEffect(() => {
-    if (!topicDocumentId) return;
-    const state = location.state as { chapterDocumentId?: string } | null;
-    const chapterDocumentId = state?.chapterDocumentId;
-    void start(topicDocumentId, components.length, chapterDocumentId);
-  }, [topicDocumentId, components.length, start, location.state]);
-
+ 
   /** Child tap control */
   const disableGlobalTap = useCallback(() => setAllowTap(false), []);
   const enableGlobalTap = useCallback(() => setAllowTap(true), []);
@@ -191,25 +183,25 @@ export default function TopicRenderer({
 
   return (
     <div
-      className="w-full h-screen bg-black text-white overflow-hidden"
+      className="w-full h-screen bg-black text-white overflow-hidden flex items-center justify-center"
       data-child-interactive="false"
     >
-      {/* Progress Bar for Auto-play */}
-      {autoPlay && <ProgressBar duration={componentDuration} isActive={true} isPaused={isPaused} elapsedTime={elapsedTime} />}
-
-      {/* Generated Slides Indicator */}
-      {isGenerated && (
-        <div className="fixed top-4 right-4 z-40 bg-blue-900/80 border border-blue-400/50 rounded-lg px-3 py-2 text-xs text-blue-200 flex items-center gap-2 backdrop-blur-sm">
-          <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
-          <span>AI-Generated Preview</span>
-          {generatedAt && (
-            <span className="text-blue-300/70">
-              {new Date(generatedAt).toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-      )}
-      <Comp key={`${current.type}-${current.props.id || index}`} {...props} data-child-interactive="true" />
+      {/* 16:9 Aspect Ratio Container */}
+      <div className="w-full h-full max-w-full" style={{ aspectRatio: "16 / 9" }}>
+        {/* Generated Slides Indicator */}
+        {isGenerated && (
+          <div className="fixed top-4 right-4 z-40 bg-blue-900/80 border border-blue-400/50 rounded-lg px-3 py-2 text-xs text-blue-200 flex items-center gap-2 backdrop-blur-sm">
+            <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+            <span>AI-Generated Preview</span>
+            {generatedAt && (
+              <span className="text-blue-300/70">
+                {new Date(generatedAt).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+        )}
+        <Comp {...props} />
+      </div>
     </div>
   );
 }

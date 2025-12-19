@@ -29,6 +29,11 @@ export default function FunFact({
   characterEmotion,
   characterDialogue,
   onNext,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
 }: FunFactProps) {
   const characterImage =
     character.image ||
@@ -43,7 +48,7 @@ export default function FunFact({
 
   return (
     <div
-      className="relative w-full h-screen flex flex-col justify-end items-center bg-gradient-to-b from-[#080812] to-[#111122] text-white cursor-pointer select-none px-6 pb-20"
+      className={`relative w-full h-screen flex flex-col justify-end items-center bg-gradient-to-b from-[#080812] to-[#111122] text-white cursor-pointer select-none ${marginX} ${marginY}`}
       onClick={onNext}
       onTouchStart={onNext}
     >

@@ -35,6 +35,17 @@ export const comptonEffectTopic = [
           background: "/images/compton/real-life-lab.png",
           emotion: "excited",
           orientation: "bottom-right"
+        },
+         {
+          dialogue:
+            "Instead of stopping, waves bend and spread out. That’s diffraction!",
+          character: {
+            name: "Ava",
+            image: "/images/Scientists/Thomas/happythomas.png"
+          },
+          background: "/images/Diffraction/diffraction-story.png",
+          emotion: "excited",
+          orientation: "bottom-left"
         }
       ]
     }
@@ -120,7 +131,18 @@ export const comptonEffectTopic = [
       }
     }
   },
-
+{
+    type: "ZoomReveal",
+    props: {
+      title: "Inside the Quantum Link",
+      image: "/images/1.png",
+      labels: [
+        { text: "Spin", x: 30, y: 40 },
+        { text: "State Correlation", x: 65, y: 50 },
+        { text: "Instant Influence", x: 50, y: 80 }
+      ]
+    }
+  },
   {
     type: "ShortAnimation",
     props: {

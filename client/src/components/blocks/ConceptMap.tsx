@@ -1,5 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
+import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
 
 interface ConceptMapProps {
   title: string;
@@ -13,18 +15,69 @@ interface ConceptMapProps {
   togglePause?: () => void;
 }
 
-export default function ConceptMap({ title, center, links, onNext }: ConceptMapProps) {
+export default function ConceptMap({ 
+  title, 
+  center, 
+  links, 
+  onNext,
+  marginX = "px-4",
+  marginY = "py-6",
+  autoPlay = false,
+  isPaused = false,
+  togglePause = () => {},
+}: ConceptMapProps) {
   const [visibleNodes, setVisibleNodes] = useState(0);
   const [showContinue, setShowContinue] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showContinueButton, setShowContinueButton] = useState(false);
   const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const radius = 180; // distance from center
 
+  // Calculate total duration
+  const totalDuration = calculateReadingTime({
+    text: `${title} ${center} ${links.join(" ")}`,
+    componentType: "ConceptMap",
+    itemCount: links.length,
+  });
+
+  const timePerNode = totalDuration / Math.max(links.length, 1);
+
+  // Auto-play timer
+  useEffect(() => {
+    if (!autoPlay || isPaused || elapsedTime >= totalDuration) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => {
+        const next = prev + 50;
+        if (next >= totalDuration) {
+          setShowContinueButton(true);
+          return totalDuration;
+        }
+        return next;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [autoPlay, isPaused, elapsedTime, totalDuration]);
+
+  // Update visible nodes based on elapsed time in auto mode
+  useEffect(() => {
+    if (autoPlay) {
+      const newVisibleNodes = Math.min(Math.floor(elapsedTime / timePerNode) + 1, links.length);
+      setVisibleNodes(newVisibleNodes);
+    }
+  }, [elapsedTime, timePerNode, links.length, autoPlay]);
+
   const handleCenterClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (visibleNodes < links.length) setVisibleNodes((v) => v + 1);
+    if (autoPlay) {
+      togglePause?.();
+    } else if (visibleNodes < links.length) {
+      setVisibleNodes((v) => v + 1);
+    }
   };
 
   useEffect(() => {
@@ -63,7 +116,7 @@ export default function ConceptMap({ title, center, links, onNext }: ConceptMapP
   return (
     <div
       ref={containerRef}
-      className="relative w-full min-h-screen flex flex-col items-center bg-gradient-to-b from-[#0a0a16] via-[#0f0f24] to-[#151530] text-white select-none overflow-auto py-6 px-4"
+      className={`relative w-full min-h-screen flex flex-col items-center bg-gradient-to-b from-[#0a0a16] via-[#0f0f24] to-[#151530] text-white select-none overflow-auto ${marginY} ${marginX}`}
     >
       {/* Title */}
       <motion.h3
@@ -141,7 +194,7 @@ export default function ConceptMap({ title, center, links, onNext }: ConceptMapP
       </div>
 
       {/* Tap to Continue */}
-      {showContinue && onNext && (
+      {!autoPlay && showContinue && onNext && (
         <motion.div
           className="flex justify-center mt-6 text-emerald-300 text-sm font-semibold cursor-pointer select-none"
           animate={{ opacity: [0, 1, 0] }}
@@ -153,6 +206,51 @@ export default function ConceptMap({ title, center, links, onNext }: ConceptMapP
         >
           Tap to Continue
         </motion.div>
+      )}
+
+      {/* Pause indicator */}
+      {autoPlay && isPaused && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ repeat: Infinity, duration: 1 }}
+            className="bg-white/10 backdrop-blur-md rounded-full p-6 border border-white/20"
+          >
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+        <ProgressBar
+          duration={totalDuration}
+          isActive={true}
+          isPaused={isPaused}
+          elapsedTime={elapsedTime}
+        />
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          data-continue="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 z-40"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
       )}
     </div>
   );

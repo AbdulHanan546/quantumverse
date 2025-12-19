@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { useAutoPlay } from "../../hooks/useAutoPlay";
 import { calculateReadingTime } from "../../utils/timeCalculation";
+import ProgressBar from "../ProgressBar";
 
 interface DiagramProps {
   illustration: string;
@@ -29,6 +29,8 @@ export default function Diagram({
   isPaused = false,
   togglePause = () => {},
 }: DiagramProps) {
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showContinueButton, setShowContinueButton] = useState(false);
   // Calculate time for diagram
   const diagramTime = calculateReadingTime({
     text,
@@ -36,14 +38,28 @@ export default function Diagram({
     componentType: "Diagram",
   });
 
-  // Auto-play hook
-  const { isPaused: _diagramPausedState } = useAutoPlay({
-    duration: diagramTime,
-    enabled: autoPlay && !isPaused,
-    onComplete: () => {
-      onNext?.();
-    },
-  });
+  // Reset elapsed time on mount
+  useEffect(() => {
+    setElapsedTime(0);
+    setShowContinueButton(false);
+  }, []);
+
+  // Auto-play timer with progress tracking
+  useEffect(() => {
+    if (!autoPlay || isPaused) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => {
+        const next = prev + 50;
+        if (next >= diagramTime) {
+          setShowContinueButton(true);
+        }
+        return next;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [autoPlay, isPaused, diagramTime]);
 
   useEffect(() => {
     disableGlobalTap?.();
@@ -64,8 +80,11 @@ export default function Diagram({
   return (
     <div
       className="relative w-full min-h-screen bg-gradient-to-b from-[#090913] to-[#111122] text-white select-none cursor-pointer flex flex-col justify-center items-center"
-      onClick={handleInteraction}
-      onTouchStart={handleInteraction}
+      data-child-interactive="true"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        handleInteraction();
+      }}
     >
       {/* Subtle glowing aura */}
       <motion.div
@@ -95,6 +114,38 @@ export default function Diagram({
           <ReactMarkdown>{text}</ReactMarkdown>
         </motion.div>
       </div>
+
+      {/* Progress bar for autoPlay mode */}
+      {autoPlay && (
+        <ProgressBar
+          duration={diagramTime}
+          isActive={true}
+          isPaused={isPaused}
+          elapsedTime={elapsedTime}
+        />
+      )}
+
+      {/* Continue button when progress completes */}
+      {autoPlay && showContinueButton && (
+        <motion.button
+          onPointerDown={(e) => {
+            // Prevent root handler from toggling pause before click
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          className="absolute right-6 bottom-6 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-200"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Continue
+        </motion.button>
+      )}
 
       {/* Pause indicator */}
       {autoPlay && isPaused && (

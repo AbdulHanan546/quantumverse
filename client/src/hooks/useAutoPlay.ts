@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 interface UseAutoPlayOptions {
   duration: number; // total time in milliseconds
   enabled?: boolean;
-  onComplete?: () => void; // called when time runs out
+  onComplete?: () => void; 
 }
 
 interface UseAutoPlayReturn {
