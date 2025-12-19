@@ -35,7 +35,7 @@ export default function TopicRenderer({
   components,
   autoPlay = true,
   marginX = "px-4",
-  marginY = "py-12",
+  marginY = "py-7",
 }: TopicRendererProps) {
   const [index, setIndex] = useState(0);
   const [allowTap, setAllowTap] = useState(false);
@@ -200,7 +200,7 @@ export default function TopicRenderer({
             )}
           </div>
         )}
-        <Comp {...props} />
+       <Comp key={`${current.type}-${current.props.id || index}`} {...props} data-child-interactive="true" />
       </div>
     </div>
   );

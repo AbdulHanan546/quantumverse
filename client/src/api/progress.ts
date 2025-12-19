@@ -18,6 +18,11 @@ export async function getMyProgress(): Promise<ProgressRow[]> {
   return data;
 }
 
+export async function getMyStats(): Promise<ProgressRow[]> {
+  const { data } = await api.get<ProgressRow[]>('/progress/stats');
+  return data;
+}
+
 export async function getTopicProgress(topicDocumentId: string): Promise<ProgressRow | null> {
   try {
     const { data } = await api.get<ProgressRow>(`/progress/topic/${topicDocumentId}`);

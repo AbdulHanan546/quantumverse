@@ -151,6 +151,8 @@ export default function FlipCardSet({
       // Update overall elapsed for a single combined progress bar
       setOverallElapsed((prev) => Math.min(prev + 50, totalDuration));
     }, 50);
+ 
+ // 2-second delay
 
     return () => clearInterval(interval);
   }, [autoPlay, isPaused, autoCardIndex, cards.length, timePerCard, overallElapsed, totalDuration]);
@@ -164,7 +166,7 @@ export default function FlipCardSet({
           newStates[0] = true;
           return newStates;
         });
-      }, 600);
+      }, 2600);
       return () => clearTimeout(t);
     }
   }, [autoPlay, isPaused, autoCardIndex, flippedStates]);

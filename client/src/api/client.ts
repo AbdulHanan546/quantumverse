@@ -26,18 +26,18 @@ api.interceptors.request.use(
 );
 
 // Response interceptor
-api.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      tokenStorage.clear();
-      if (
-        !location.pathname.startsWith('/signin') &&
-        !location.pathname.startsWith('/signup')
-      ) {
-        location.href = '/signin';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+// api.interceptors.response.use(
+//   (response) => response,
+//   (error: AxiosError) => {
+//     if (error.response?.status === 401) {
+//       tokenStorage.clear();
+//       if (
+//         !location.pathname.startsWith('/signin') &&
+//         !location.pathname.startsWith('/signup')
+//       ) {
+//         location.href = '/';
+//       }
+//     }
+//     return Promise.reject(error);
+//   }
+// );

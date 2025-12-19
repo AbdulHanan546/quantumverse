@@ -6,14 +6,98 @@ import { ChapterProgress } from './chapter-progress.entity';
 import { StartProgressDto } from './dto/start-progress.dto';
 import { UpdateProgressDto } from './dto/update-progress.dto';
 import { UsersService } from '../users/users.service';
+import { User } from 'src/users/user.entity';
 
 @Injectable()
 export class ProgressService {
   constructor(
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Progress) private readonly repo: Repository<Progress>,
     @InjectRepository(ChapterProgress) private readonly chapterRepo: Repository<ChapterProgress>,
     private readonly usersService: UsersService,
   ) { }
+
+  async getUserStats(userId: number) {
+    // 1. Get User Creation Date for "Account Age"
+    // Assuming usersService has a generic findOne or we use a repo call here. 
+    // If usersService.findOne returns a promise of a User:
+    const user = await this.usersService.findById(userId); 
+    
+    // 2. Aggregate Topic (Progress) Stats
+    // We use getRawOne to retrieve calculated fields directly from the DB
+    const topicStats = await this.repo
+      .createQueryBuilder('p')
+      .select('COUNT(p.id)', 'totalInteracted')
+      .addSelect('SUM(CASE WHEN p.status = :completed THEN 1 ELSE 0 END)', 'countCompleted')
+      .addSelect('SUM(CASE WHEN p.status = :inProgress THEN 1 ELSE 0 END)', 'countInProgress')
+      .addSelect('SUM(CASE WHEN p.status = :notStarted THEN 1 ELSE 0 END)', 'countNotStarted')
+      .addSelect('AVG(p.percent)', 'avgTopicScore')
+      .addSelect('SUM(p.lastIndex)', 'totalBlocksRead') // Approximate metric of reading volume
+      .addSelect('MAX(p.updatedAt)', 'lastActivity')
+      .where('p.userId = :userId', { 
+        userId, 
+        completed: 'completed', 
+        inProgress: 'in_progress',
+        notStarted: 'not_started' 
+      })
+      .getRawOne();
+
+    // 3. Aggregate Chapter Stats
+    const chapterStats = await this.chapterRepo
+      .createQueryBuilder('cp')
+      .select('COUNT(cp.id)', 'totalInteracted')
+      .addSelect('AVG(cp.averagePercent)', 'avgChapterScore')
+      .addSelect('SUM(cp.completedTopics)', 'totalTopicsDoneInChapters')
+      .addSelect('SUM(cp.totalTopics)', 'totalTopicsAvailableInChapters')
+      .where('cp.userId = :userId', { userId })
+      .getRawOne();
+
+    // 4. Calculate Derived Stats
+    const now = new Date();
+    const joinedAt = user ? user.createdAt : new Date();
+    const daysSinceJoined = Math.max(1, Math.floor((now.getTime() - joinedAt.getTime()) / (1000 * 3600 * 24)));
+
+    // Parse values (SQL aggregates often return strings in JS)
+    const topicTotal = parseInt(topicStats.totalInteracted || '0', 10);
+    const topicCompleted = parseInt(topicStats.countCompleted || '0', 10);
+    const topicInProgress = parseInt(topicStats.countInProgress || '0', 10);
+    const avgTopicPercent = parseFloat(topicStats.avgTopicScore || '0');
+    
+    const chapterTotal = parseInt(chapterStats.totalInteracted || '0', 10);
+    const totalTopicsInChapters = parseInt(chapterStats.totalTopicsAvailableInChapters || '0', 10);
+    const finishedTopicsInChapters = parseInt(chapterStats.totalTopicsDoneInChapters || '0', 10);
+
+    // Calculate Global Completion Rate (Total Topics Completed / Total Topics Available across active chapters)
+    // Avoid division by zero
+    const globalCompletionRate = totalTopicsInChapters > 0 
+      ? (finishedTopicsInChapters / totalTopicsInChapters) * 100 
+      : 0;
+
+    return {
+      overview: {
+        account_age_days: daysSinceJoined,
+        last_active_at: topicStats.lastActivity || null,
+        global_completion_rate: parseFloat(globalCompletionRate.toFixed(2)),
+      },
+      topics: {
+        total_interacted: topicTotal,
+        completed: topicCompleted,
+        in_progress: topicInProgress,
+        not_started: parseInt(topicStats.countNotStarted || '0', 10),
+        average_percent: parseFloat(avgTopicPercent.toFixed(2)),
+        total_blocks_read: parseInt(topicStats.totalBlocksRead || '0', 10),
+      },
+      chapters: {
+        total_interacted: chapterTotal,
+        average_percent: parseFloat((chapterStats.avgChapterScore || 0).toString()),
+        progress_breakdown: {
+          total_topics_available: totalTopicsInChapters,
+          total_topics_completed: finishedTopicsInChapters,
+          remaining_topics: totalTopicsInChapters - finishedTopicsInChapters
+        }
+      }
+    };
+  }
 
   async getAllForUser(userId: number) {
     return this.repo.find({ where: { user: { id: userId } } });

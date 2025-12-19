@@ -65,33 +65,33 @@ export default function Story({
 const totalDuration = sceneDurations.reduce((a, b) => a + b, 0);
 
   
- 
+ const accumulatedRef = useRef(0); // time already elapsed before current session
+
 
 
   // Auto-play timer with progress tracking
 useEffect(() => {
-  if (!autoPlay || isPaused) return;
+  if (!autoPlay) return;
 
-  completedRef.current = false;
-  let start = performance.now();
   let rafId: number;
+  let start = performance.now();
 
   const tick = (now: number) => {
-    if (completedRef.current) return;
+    const elapsedSinceStart = now - start;
+    const totalElapsed = accumulatedRef.current + elapsedSinceStart;
 
-    const elapsed = now - start;
-    setElapsedTime(elapsed);
+    setElapsedTime(totalElapsed);
 
     let accumulated = 0;
     for (let i = 0; i < sceneDurations.length; i++) {
       accumulated += sceneDurations[i];
-      if (elapsed < accumulated) {
+      if (totalElapsed < accumulated) {
         setIndex(i);
         break;
       }
     }
 
-    if (elapsed >= totalDuration) {
+    if (totalElapsed >= totalDuration) {
       setElapsedTime(totalDuration);
       setShowContinueButton(true);
       completedRef.current = true;
@@ -101,7 +101,14 @@ useEffect(() => {
     rafId = requestAnimationFrame(tick);
   };
 
-  rafId = requestAnimationFrame(tick);
+  if (!isPaused) {
+    start = performance.now();
+    rafId = requestAnimationFrame(tick);
+  } else {
+    // store elapsed when paused
+    accumulatedRef.current = elapsedTime;
+  }
+
   return () => cancelAnimationFrame(rafId);
 }, [autoPlay, isPaused]);
 
@@ -146,7 +153,7 @@ useEffect(() => {
   e.stopPropagation();
   completedRef.current = false;
   setShowContinueButton(false);
-  onNext?.();
+  onNext?.(); // move to next TopicRenderer component
 };
 
 
