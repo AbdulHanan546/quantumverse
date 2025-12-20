@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics: Heisenberg Uncertainty Principle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Scrollbar and Slider Styling for the 'Green' theme */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #4ade80; /* Green-400 */
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #27272a; /* Zinc-800 */
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        
+        /* Glow effect class */
+        .glow-text {
+            text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
+        }
+        .glow-border {
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-black flex items-center justify-center min-h-screen p-4 font-sans select-none">
+
+    <!-- Main Container: 16/9 Aspect Ratio -->
+    <div class="relative w-full max-w-6xl aspect-video bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden border border-zinc-800 flex flex-col glow-border">
+        
+        <!-- Header -->
+        <div class="absolute top-0 left-0 w-full p-6 z-10 flex justify-between items-start pointer-events-none">
+            <div>
+                <h1 class="text-3xl font-bold text-green-400 glow-text tracking-wider uppercase">Uncertainty Principle</h1>
+                <p class="text-zinc-500 text-sm mt-1">Wave Packet Localization vs. Momentum Distribution</p>
+            </div>
+            <div class="bg-zinc-950/80 backdrop-blur px-5 py-3 rounded-lg border border-zinc-800 text-sm text-zinc-400 shadow-lg">
+                <span class="text-green-400 font-bold font-mono">Δx</span> · 
+                <span class="text-green-400 font-bold font-mono">Δp</span> ≥ 
+                <span class="text-zinc-300 font-serif italic">ℏ</span>/2
+            </div>
+        </div>
+
+        <!-- Canvas Area (Split View) -->
+        <div class="flex-grow flex flex-col w-full h-full" id="canvas-container">
+            
+            <!-- Position Space -->
+            <div class="relative h-1/2 w-full border-b border-zinc-800/50 bg-gradient-to-b from-zinc-900 to-zinc-900/50">
+                <div class="absolute top-24 left-6 text-xs font-bold text-zinc-600 uppercase tracking-widest pointer-events-none">
+                    Position Space <span class="normal-case font-serif italic text-zinc-500">(ψ)</span>
+                </div>
+                <div class="absolute top-24 right-6 text-xs font-mono text-green-400 pointer-events-none">
+                    Δx: <span id="label-dx">1.00</span>
+                </div>
+                <canvas id="posCanvas" class="block w-full h-full"></canvas>
+            </div>
+
+            <!-- Momentum Space -->
+            <div class="relative h-1/2 w-full bg-zinc-900/50">
+                <div class="absolute top-4 left-6 text-xs font-bold text-zinc-600 uppercase tracking-widest pointer-events-none">
+                    Momentum Space <span class="normal-case font-serif italic text-zinc-500">(φ)</span>
+                </div>
+                <div class="absolute top-4 right-6 text-xs font-mono text-green-400 pointer-events-none">
+                    Δp: <span id="label-dp">1.00</span>
+                </div>
+                <canvas id="momCanvas" class="block w-full h-full"></canvas>
+            </div>
+
+        </div>
+
+        <!-- Controls UI -->
+        <div class="absolute bottom-0 w-full bg-zinc-950/90 backdrop-blur border-t border-zinc-800 p-6 z-20">
+            <div class="flex items-center justify-between gap-8 max-w-4xl mx-auto">
+                
+                <!-- Description -->
+                <div class="hidden md:block w-1/3 text-xs text-zinc-500 leading-relaxed">
+                    Adjusting the <span class="text-green-400">localization</span> of the particle in space mathematically forces the <span class="text-green-400">momentum</span> range to expand or contract.
+                </div>
+
+                <!-- Main Slider Control -->
+                <div class="flex-grow space-y-4">
+                    <div class="flex justify-between items-end">
+                        <label class="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                            Localization <span class="text-zinc-600">(Wave Packet Width)</span>
+                        </label>
+                        <span class="text-[10px] text-zinc-600 uppercase">Interactive</span>
+                    </div>
+                    
+                    <div class="relative flex items-center group">
+                        <span class="absolute left-0 -top-6 text-[10px] text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">Precise Position</span>
+                        <span class="absolute right-0 -top-6 text-[10px] text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">Precise Momentum</span>
+                        
+                        <input type="range" id="uncertaintySlider" min="0.1" max="3.0" step="0.01" value="1.0">
+                    </div>
+                </div>
+
+                <!-- Play/Pause -->
+                <button id="btn-pause" class="w-12 h-12 flex items-center justify-center rounded-full bg-zinc-800 hover:bg-zinc-700 text-green-400 border border-green-900/30 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-green-900/20">
+                    <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    <svg id="icon-play" class="hidden" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Setup Canvases
+        const posCanvas = document.getElementById('posCanvas');
+        const momCanvas = document.getElementById('momCanvas');
+        const posCtx = posCanvas.getContext('2d');
+        const momCtx = momCanvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        // UI Elements
+        const slider = document.getElementById('uncertaintySlider');
+        const labelDx = document.getElementById('label-dx');
+        const labelDp = document.getElementById('label-dp');
+        const btnPause = document.getElementById('btn-pause');
+        const iconPause = document.getElementById('icon-pause');
+        const iconPlay = document.getElementById('icon-play');
+
+        // State
+        let time = 0;
+        let isRunning = true;
+        let width, height; // height is height of ONE canvas (half container)
+        
+        // Physics Parameters
+        // Sigma (σ) represents Δx.
+        // The relationship is Δp ∝ 1/Δx. 
+        let sigma = 1.0; 
+        const k0 = 15; // Central wavenumber (momentum)
+        const v_phase = 1.5; // Phase velocity
+
+        function resize() {
+            // Calculate dimensions based on the container, split by 2
+            const rect = container.getBoundingClientRect();
+            width = rect.width;
+            height = rect.height / 2;
+
+            // Handle HDPI displays
+            const dpr = window.devicePixelRatio || 1;
+            
+            [posCanvas, momCanvas].forEach(c => {
+                c.width = width * dpr;
+                c.height = height * dpr;
+                const ctx = c.getContext('2d');
+                ctx.scale(dpr, dpr);
+            });
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 1. Position Space Function: Gaussian Wave Packet
+        // Ψ(x) = e^(-x²/2σ²) * cos(kx - ωt)
+        function drawPositionSpace() {
+            posCtx.clearRect(0, 0, width, height);
+
+            const centerY = height / 2;
+            const scaleX = 100; // Visual scaling factor for x-axis
+            
+            // Draw Center Axis
+            posCtx.strokeStyle = '#27272a';
+            posCtx.beginPath();
+            posCtx.moveTo(0, centerY);
+            posCtx.lineTo(width, centerY);
+            posCtx.stroke();
+
+            posCtx.lineWidth = 2;
+
+            // 1. Draw Envelope (Ghosted)
+            posCtx.beginPath();
+            posCtx.strokeStyle = '#52525b'; // Zinc-600
+            posCtx.setLineDash([4, 4]);
+            for (let x = 0; x <= width; x += 2) {
+                // Normalize x centered at screen center
+                let xNorm = (x - width / 2) / scaleX;
+                
+                // Gaussian Envelope
+                let envelope = Math.exp(-(xNorm * xNorm) / (2 * sigma * sigma));
+                let y = envelope * (height * 0.35); // Amplitude scaling
+                
+                if(x===0) posCtx.moveTo(x, centerY - y);
+                else posCtx.lineTo(x, centerY - y);
+            }
+            // Draw bottom half of envelope for visual completeness
+            for (let x = width; x >= 0; x -= 2) {
+                let xNorm = (x - width / 2) / scaleX;
+                let envelope = Math.exp(-(xNorm * xNorm) / (2 * sigma * sigma));
+                let y = -envelope * (height * 0.35);
+                posCtx.lineTo(x, centerY - y);
+            }
+            posCtx.stroke();
+            posCtx.setLineDash([]); // Reset dash
+
+            // 2. Draw Real Part of Wavefunction
+            posCtx.beginPath();
+            posCtx.strokeStyle = '#4ade80'; // Green-400
+            posCtx.shadowColor = '#4ade80';
+            posCtx.shadowBlur = 15;
+            
+            for (let x = 0; x <= width; x += 2) {
+                let xNorm = (x - width / 2) / scaleX;
+                
+                // Envelope
+                let envelope = Math.exp(-(xNorm * xNorm) / (2 * sigma * sigma));
+                
+                // Traveling Wave part: cos(k0*x - wt)
+                // We add a phase shift based on time
+                let carrier = Math.cos(k0 * xNorm - time * v_phase);
+                
+                let val = envelope * carrier;
+                let y = val * (height * 0.35);
+
+                if (x === 0) posCtx.moveTo(x, centerY - y);
+                else posCtx.lineTo(x, centerY - y);
+            }
+            posCtx.stroke();
+            posCtx.shadowBlur = 0;
+        }
+
+        // 2. Momentum Space Function: Fourier Transform of Gaussian
+        // The FT of a Gaussian is also a Gaussian.
+        // Width σ_p = 1 / σ_x
+        function drawMomentumSpace() {
+            momCtx.clearRect(0, 0, width, height);
+            
+            const centerY = height / 2 + 20; // Lower it slightly
+            const scaleX = 100;
+            
+            // Draw Axis
+            momCtx.strokeStyle = '#27272a';
+            momCtx.beginPath();
+            momCtx.moveTo(0, centerY);
+            momCtx.lineTo(width, centerY);
+            momCtx.stroke();
+
+            // Calculate Momentum Width (Inverse relationship)
+            // We add a constant to prevent division by zero or infinite width visuals
+            let sigmaP = 0.5 / sigma; 
+
+            momCtx.fillStyle = 'rgba(74, 222, 128, 0.2)'; // Green transparent fill
+            momCtx.strokeStyle = '#4ade80';
+            momCtx.lineWidth = 2;
+            momCtx.shadowColor = '#4ade80';
+            momCtx.shadowBlur = 10;
+
+            momCtx.beginPath();
+            // We draw the probability distribution |Φ(p)|² which is a Gaussian centered at k0? 
+            // For visualization, we center it at the screen center to represent the spread of momentum values.
+            
+            let firstPoint = true;
+
+            for (let x = 0; x <= width; x += 2) {
+                let xNorm = (x - width / 2) / scaleX;
+                
+                // Momentum Gaussian
+                // Note: In real physics, this is centered at p = k0. 
+                // Here we visualize the distribution around the mean momentum.
+                let val = Math.exp(-(xNorm * xNorm) / (2 * sigmaP * sigmaP));
+                
+                let y = val * (height * 0.35);
+
+                if (firstPoint) {
+                    momCtx.moveTo(x, centerY - y);
+                    firstPoint = false;
+                } else {
+                    momCtx.lineTo(x, centerY - y);
+                }
+            }
+            
+            // Close the shape for filling
+            momCtx.lineTo(width, centerY);
+            momCtx.lineTo(0, centerY);
+            momCtx.closePath();
+            
+            momCtx.fill();
+            momCtx.stroke();
+            momCtx.shadowBlur = 0;
+
+            // Draw Mean Momentum Marker
+            momCtx.beginPath();
+            momCtx.strokeStyle = '#fff';
+            momCtx.setLineDash([2, 2]);
+            momCtx.moveTo(width/2, centerY);
+            momCtx.lineTo(width/2, centerY - (height * 0.35));
+            momCtx.stroke();
+            momCtx.setLineDash([]);
+        }
+
+        function animate() {
+            if (!isRunning) return;
+
+            // Update Time
+            time += 0.05;
+
+            drawPositionSpace();
+            drawMomentumSpace();
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- Interaction ---
+
+        function updateLabels() {
+            // Visual numbers (arbitrary units for display)
+            labelDx.innerText = sigma.toFixed(2);
+            let dpVal = (1 / sigma).toFixed(2);
+            labelDp.innerText = dpVal;
+        }
+
+        slider.addEventListener('input', (e) => {
+            // Map slider value to sigma
+            // Slider left (low val) = Narrow Position (Small Sigma) -> Wide Momentum
+            // Slider right (high val) = Wide Position (Large Sigma) -> Narrow Momentum
+            // Let's invert the slider feel: 
+            // Left: High Precision Position (Small Sigma)
+            // Right: Low Precision Position (Large Sigma)
+            
+            sigma = parseFloat(e.target.value);
+            updateLabels();
+            if (!isRunning) {
+                drawPositionSpace();
+                drawMomentumSpace();
+            }
+        });
+
+        btnPause.addEventListener('click', () => {
+            isRunning = !isRunning;
+            iconPause.classList.toggle('hidden');
+            iconPlay.classList.toggle('hidden');
+            if(isRunning) animate();
+        });
+
+        // Initialize
+        updateLabels();
+        animate();
+
+    </script>
+</body>
+</html>

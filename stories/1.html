@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Mode: Beats & AM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* --- THEME: Zinc-900 (Background) & Cyan-400 (Sci-Fi/Oscilloscope) --- */
+        :root {
+            --bg: #18181b;
+            --surface: #27272a;
+            --accent: #22d3ee; /* Cyan-400 */
+            --accent-sec: #f472b6; /* Pink-400 for secondary wave */
+            --dim: rgba(34, 211, 238, 0.1);
+        }
+        
+        body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: var(--accent); }
+
+        /* CRT Scanline Effect */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Dialogue Box */
+        .dialogue-box {
+            background: rgba(24, 24, 27, 0.95);
+            border: 1px solid #3f3f46;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+            transition: border-color 0.3s;
+        }
+        
+        .type-cursor::after {
+            content: '▋';
+            animation: blink 1s step-start infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Oscilloscope Grid */
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 select-none">
+
+    <!-- MAIN CONTAINER -->
+    <div class="relative w-full max-w-[1200px] aspect-video bg-zinc-900 rounded-lg shadow-2xl overflow-hidden border border-zinc-800 flex flex-col crt">
+        
+        <!-- HEADER -->
+        <div class="absolute top-0 w-full p-4 z-20 flex justify-between items-start pointer-events-none">
+            <div class="bg-black/50 backdrop-blur px-3 py-1 border border-cyan-900/50 text-xs text-cyan-600 font-bold uppercase tracking-widest">
+                Module: Signal Processing // Interference
+            </div>
+            <button id="btn-skip" class="pointer-events-auto px-3 py-1 text-xs text-zinc-600 hover:text-cyan-500 border border-transparent hover:border-cyan-900 transition-colors uppercase">
+                Skip &rarr;
+            </button>
+        </div>
+
+        <!-- SIMULATION LAYER -->
+        <div class="absolute inset-0 z-0 grid-bg">
+            <canvas id="simCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Floating Label for math concepts -->
+            <div id="math-overlay" class="absolute top-24 left-1/2 -translate-x-1/2 text-center opacity-0 transition-opacity duration-1000">
+                <h2 id="math-title" class="text-3xl font-bold text-white shadow-black drop-shadow-md"></h2>
+                <p id="math-sub" class="text-sm text-cyan-400 font-mono mt-1"></p>
+            </div>
+        </div>
+
+        <!-- DIALOGUE UI LAYER -->
+        <div class="absolute bottom-0 w-full z-30 p-6 flex justify-center">
+            <div class="dialogue-box w-full max-w-4xl rounded-xl p-6 min-h-[140px] relative cursor-pointer group" id="dialogue-area">
+                
+                <!-- Speaker Name (Minimalist, no card) -->
+                <div id="speaker-name" class="absolute -top-3 left-6 bg-zinc-900 text-cyan-400 px-4 py-1 text-xs font-bold uppercase tracking-widest border border-cyan-900 transition-colors">
+                    System
+                </div>
+
+                <!-- Text Content -->
+                <p id="dialogue-text" class="text-lg text-zinc-300 leading-relaxed font-mono type-cursor"></p>
+                
+                <!-- Prompt -->
+                <div class="absolute bottom-4 right-4 text-xs text-cyan-600 group-hover:text-cyan-400 transition-colors">
+                    [CLICK TO CONTINUE]
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /* =========================================
+           1. THE SCRIPT (Story Data)
+           ========================================= */
+        const script = [
+            {
+                speaker: "System",
+                text: "Initializing Oscilloscope. Subject: Wave Interference and Modulation.",
+                simMode: "FLATLINE",
+                math: ["", ""]
+            },
+            {
+                speaker: "Helmholtz",
+                text: "Imagine a single pure tone. A perfect sine wave. Consistent. Boring.",
+                simMode: "SINGLE_WAVE",
+                math: ["Tone A", "f = 440Hz"]
+            },
+            {
+                speaker: "Helmholtz",
+                text: "Now, let us introduce a second tone. Almost identical, but not quite.",
+                simMode: "TWO_WAVES_SEPARATE",
+                math: ["Tone A & Tone B", "f1 = 10Hz, f2 = 12Hz"]
+            },
+            {
+                speaker: "Musician",
+                text: "They are drifting. Look closely. Sometimes they peak together (In Phase), sometimes they oppose (Out of Phase).",
+                simMode: "TWO_WAVES_DRIFTING",
+                math: ["Phase Shift", "Δφ changing"]
+            },
+            {
+                speaker: "Helmholtz",
+                text: "What happens if we play them simultaneously? We add them together.",
+                simMode: "SUM_WAVES_SLOW",
+                math: ["Superposition", "y = sin(A) + sin(B)"]
+            },
+            {
+                speaker: "Musician",
+                text: "Can you see the pattern? When they align, they grow loud. When they oppose, they silence each other.",
+                simMode: "SUM_WAVES_FAST",
+                math: ["Constructive & Destructive", "Amplitude fluctuates"]
+            },
+            {
+                speaker: "Helmholtz",
+                text: "This throbbing sound is a 'Beat'. The frequency of the throb is simply the difference between the two tones.",
+                simMode: "BEATS_INTERACTIVE", // Mouse X controls diff
+                math: ["The Beat Frequency", "f_beat = |f1 - f2|"]
+            },
+            {
+                speaker: "System",
+                text: "Simulation unlocked: Move your mouse horizontally to change the frequency difference.",
+                simMode: "BEATS_INTERACTIVE",
+                math: ["Interactive Mode", "Mouse X: Adjust Difference"]
+            },
+            {
+                speaker: "Marconi",
+                text: "Now, let us leap forward to Radio. We don't want to just hear a throb. We want to carry a message.",
+                simMode: "CARRIER_ONLY",
+                math: ["The Carrier", "High Frequency Radio Wave"]
+            },
+            {
+                speaker: "Marconi",
+                text: "This high-frequency wave travels far. But it carries no information. It is just a hum.",
+                simMode: "CARRIER_ONLY",
+                math: ["The Carrier", "Constant Amplitude"]
+            },
+            {
+                speaker: "Marconi",
+                text: "We need a signal. Your voice. Music. A slow, low-frequency wave compared to the carrier.",
+                simMode: "SIGNAL_ONLY",
+                math: ["The Signal", "Low Frequency Audio"]
+            },
+            {
+                speaker: "Marconi",
+                text: "In Beats, we *added* waves. In Radio, we *multiply* them. The signal becomes the envelope for the carrier.",
+                simMode: "AM_VISUALIZATION",
+                math: ["Amplitude Modulation", "y = (1 + Signal) * Carrier"]
+            },
+            {
+                speaker: "System",
+                text: "This is AM Radio. The carrier's strength (Amplitude) pulsates to match the music.",
+                simMode: "AM_INTERACTIVE",
+                math: ["AM Transmission", "Mouse X: Change Signal Freq"]
+            },
+            {
+                speaker: "System",
+                text: "End of Module.",
+                simMode: "AM_INTERACTIVE",
+                math: ["Simulation Ended", ""]
+            }
+        ];
+
+        /* =========================================
+           2. ENGINE & STATE
+           ========================================= */
+        const ui = {
+            dialogueBox: document.getElementById('dialogue-area'),
+            text: document.getElementById('dialogue-text'),
+            name: document.getElementById('speaker-name'),
+            mathTitle: document.getElementById('math-title'),
+            mathSub: document.getElementById('math-sub'),
+            mathOverlay: document.getElementById('math-overlay')
+        };
+
+        let state = {
+            lineIndex: 0,
+            isTyping: false,
+            simMode: 'FLATLINE',
+            mouseX: 0.5, // 0 to 1
+            time: 0
+        };
+
+        // --- Typing Effect ---
+        function typeWriter(text, cb) {
+            state.isTyping = true;
+            ui.text.innerHTML = "";
+            ui.dialogueBox.classList.add('pointer-events-none');
+            
+            let i = 0;
+            const speed = 25; 
+
+            function step() {
+                if (i < text.length) {
+                    ui.text.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(step, speed);
+                } else {
+                    state.isTyping = false;
+                    ui.dialogueBox.classList.remove('pointer-events-none');
+                    if(cb) cb();
+                }
+            }
+            step();
+        }
+
+        // --- Story Progression ---
+        function advanceStory() {
+            if (state.isTyping) return;
+            if (state.lineIndex >= script.length - 1) return;
+
+            state.lineIndex++;
+            renderScene(script[state.lineIndex]);
+        }
+
+        function renderScene(line) {
+            state.simMode = line.simMode;
+            
+            // Update Speaker Name Color based on character
+            ui.name.innerText = line.speaker;
+            if(line.speaker === 'System') ui.name.style.borderColor = '#22d3ee', ui.name.style.color = '#22d3ee'; // Cyan
+            else if(line.speaker === 'Helmholtz') ui.name.style.borderColor = '#f472b6', ui.name.style.color = '#f472b6'; // Pink
+            else if(line.speaker === 'Musician') ui.name.style.borderColor = '#fbbf24', ui.name.style.color = '#fbbf24'; // Amber
+            else if(line.speaker === 'Marconi') ui.name.style.borderColor = '#a3e635', ui.name.style.color = '#a3e635'; // Lime
+
+            // Update Math Overlay
+            if(line.math[0] !== "") {
+                ui.mathTitle.innerText = line.math[0];
+                ui.mathSub.innerText = line.math[1];
+                ui.mathOverlay.style.opacity = "1";
+            } else {
+                ui.mathOverlay.style.opacity = "0";
+            }
+
+            typeWriter(line.text);
+        }
+
+        ui.dialogueBox.addEventListener('click', advanceStory);
+        document.getElementById('btn-skip').addEventListener('click', () => {
+            state.lineIndex = script.length - 2;
+            advanceStory();
+        });
+
+        /* =========================================
+           3. SIMULATION RENDERER
+           ========================================= */
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            state.mouseX = (e.clientX - rect.left) / rect.width;
+        });
+
+        function loop() {
+            const W = canvas.width;
+            const H = canvas.height;
+            const CY = H/2;
+            
+            ctx.clearRect(0,0,W,H);
+            state.time += 0.05;
+
+            // Common Drawing settings
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+
+            // --- Modes ---
+
+            if (state.simMode === 'FLATLINE') {
+                drawWave(ctx, W, CY, 0, 0, '#22d3ee');
+            }
+            
+            else if (state.simMode === 'SINGLE_WAVE') {
+                // Just a pure sine
+                drawWave(ctx, W, CY, 10, 0.05, '#22d3ee', 100);
+            }
+
+            else if (state.simMode === 'TWO_WAVES_SEPARATE') {
+                // Wave A (Cyan) fixed
+                drawWave(ctx, W, CY - 50, 8, 0.05, 'rgba(34, 211, 238, 0.5)', 40);
+                // Wave B (Pink) slightly different
+                drawWave(ctx, W, CY + 50, 9, 0.05, 'rgba(244, 114, 182, 0.5)', 40);
+            }
+
+            else if (state.simMode === 'TWO_WAVES_DRIFTING') {
+                // Draw them on top of each other to show interference visually
+                drawWave(ctx, W, CY, 8, 0.05, 'rgba(34, 211, 238, 0.8)', 80);
+                drawWave(ctx, W, CY, 9, 0.05, 'rgba(244, 114, 182, 0.8)', 80);
+            }
+
+            else if (state.simMode === 'SUM_WAVES_SLOW' || state.simMode === 'SUM_WAVES_FAST') {
+                const freqDiff = (state.simMode === 'SUM_WAVES_SLOW') ? 0.2 : 0.5;
+                // Draw ghosts
+                drawWave(ctx, W, CY, 5, 0.02, 'rgba(34, 211, 238, 0.1)', 50);
+                drawWave(ctx, W, CY, 5+freqDiff, 0.02, 'rgba(244, 114, 182, 0.1)', 50);
+                
+                // Draw Sum (White/Bright)
+                // y = sin(f1) + sin(f2)
+                ctx.beginPath();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                for(let x=0; x<W; x++) {
+                    const t = state.time + x*0.02;
+                    const y1 = Math.sin(t * 5) * 50;
+                    const y2 = Math.sin(t * (5+freqDiff)) * 50;
+                    ctx.lineTo(x, CY + y1 + y2);
+                }
+                ctx.stroke();
+            }
+
+            else if (state.simMode === 'BEATS_INTERACTIVE') {
+                // freq1 fixed, freq2 controlled by mouse
+                const baseF = 8;
+                const diff = state.mouseX * 2; // 0 to 2 diff
+                const f2 = baseF + diff;
+
+                // Draw Envelope (The Beat)
+                ctx.beginPath();
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 2;
+                for(let x=0; x<W; x++) {
+                    const scale = 0.02;
+                    const t = state.time + x*scale;
+                    // Physics: Summing two waves
+                    const val = Math.sin(t * baseF) + Math.sin(t * f2);
+                    ctx.lineTo(x, CY + val * 40);
+                }
+                ctx.stroke();
+
+                // Draw labels
+                ctx.fillStyle = "#fff";
+                ctx.fillText(`Δ Frequency: ${diff.toFixed(2)}`, 20, 30);
+            }
+
+            else if (state.simMode === 'CARRIER_ONLY') {
+                // High freq, constant amp
+                drawWave(ctx, W, CY, 40, 0.02, '#22d3ee', 80);
+            }
+
+            else if (state.simMode === 'SIGNAL_ONLY') {
+                // Low freq (The message)
+                drawWave(ctx, W, CY, 2, 0.02, '#f472b6', 80);
+            }
+
+            else if (state.simMode === 'AM_VISUALIZATION' || state.simMode === 'AM_INTERACTIVE') {
+                const carrierF = 40; // Fast
+                let signalF = 2;   // Slow
+                
+                if(state.simMode === 'AM_INTERACTIVE') {
+                    signalF = 0.5 + state.mouseX * 5;
+                }
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#a3e635'; // Lime green for Radio
+                ctx.lineWidth = 2;
+                
+                for(let x=0; x<W; x++) {
+                    const t = state.time + x*0.005; // slower spatial stretch
+                    
+                    // AM Formula: (1 + m*sin(signal)) * sin(carrier)
+                    // The signal modulates the AMPLITUDE of the carrier
+                    const signal = Math.sin(t * signalF);
+                    const carrier = Math.sin(t * carrierF);
+                    
+                    // 1.0 is offset so we don't multiply by negative numbers often (basic AM)
+                    const y = (1 + 0.8 * signal) * carrier; 
+                    
+                    ctx.lineTo(x, CY + y * 60);
+                }
+                ctx.stroke();
+
+                // Draw the "Ghost" Signal (Envelope) to show what's happening
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(244, 114, 182, 0.3)';
+                ctx.lineWidth = 4;
+                for(let x=0; x<W; x++) {
+                    const t = state.time + x*0.005;
+                    const signal = Math.sin(t * signalF);
+                    ctx.lineTo(x, CY - (1 + 0.8 * signal) * 60); // Top envelope
+                }
+                ctx.stroke();
+                
+                if(state.simMode === 'AM_INTERACTIVE') {
+                    ctx.fillStyle = "#fff";
+                    ctx.fillText(`Signal Freq: ${signalF.toFixed(1)}`, 20, 30);
+                }
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // Helper to draw simple sine
+        function drawWave(ctx, w, cy, freq, stretch, color, amp=50) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            for(let x=0; x<w; x++) {
+                // y = sin(frequency * (time + space))
+                const y = Math.sin((state.time + x*stretch) * freq) * amp;
+                ctx.lineTo(x, cy + y);
+            }
+            ctx.stroke();
+        }
+        
+        // Start
+        renderScene(script[0]);
+        loop();
+
+    </script>
+</body>
+</html>

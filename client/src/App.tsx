@@ -12,6 +12,8 @@ import { fetchTopic } from "./services/cms";
 import LandingPage from "./pages/landing-page/LandingPage";
 import { getMyProgress, getMyStats } from "./api/progress";
 import { Profile } from "./components/Profile";
+import { comptonEffectTopic } from "./data/compton";
+import { Simulations } from "./components/Simulations";
 
 function AppWrapper() {
   const [topicData, setTopicData] = useState<any | null>(null);
@@ -89,6 +91,8 @@ function TopicRendererWrapper() {
 
         {/* Default Routes */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/slides" element={<TopicRenderer components={comptonEffectTopic} />} />
+        <Route path="/simulations" element={<Simulations />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>

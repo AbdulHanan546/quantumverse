@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Mode: The Quantum Leap</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* --- THEME: Zinc-900 & Amber-500 (Heat/Radiation) --- */
+        :root {
+            --bg: #18181b;
+            --surface: #27272a;
+            --accent: #f59e0b; /* Amber-500 */
+            --fail: #ef4444;    /* Red for Catastrophe */
+            --correct: #10b981; /* Emerald for Planck */
+        }
+        
+        body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: var(--accent); }
+
+        /* CRT Scanline Effect */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Dialogue Box */
+        .dialogue-box {
+            background: rgba(24, 24, 27, 0.95);
+            border: 1px solid #78350f;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+            transition: border-color 0.3s;
+        }
+        
+        .type-cursor::after {
+            content: '▋';
+            animation: blink 1s step-start infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Heat Grid */
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(245, 158, 11, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(245, 158, 11, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 select-none">
+
+    <!-- MAIN CONTAINER -->
+    <div class="relative w-full max-w-[1200px] aspect-video bg-zinc-900 rounded-lg shadow-2xl overflow-hidden border border-zinc-800 flex flex-col crt">
+        
+        <!-- HEADER -->
+        <div class="absolute top-0 w-full p-4 z-20 flex justify-between items-start pointer-events-none">
+            <div class="bg-black/50 backdrop-blur px-3 py-1 border border-amber-900/50 text-xs text-amber-500 font-bold uppercase tracking-widest">
+                Archive: Berlin // 1900
+            </div>
+            <button id="btn-skip" class="pointer-events-auto px-3 py-1 text-xs text-zinc-600 hover:text-amber-500 border border-transparent hover:border-amber-900 transition-colors uppercase">
+                Skip &rarr;
+            </button>
+        </div>
+
+        <!-- SIMULATION LAYER -->
+        <div class="absolute inset-0 z-0 grid-bg">
+            <canvas id="simCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Math/Concept Overlay -->
+            <div id="math-overlay" class="absolute top-16 right-16 text-right opacity-0 transition-opacity duration-1000">
+                <h2 id="math-title" class="text-3xl font-bold text-white shadow-black drop-shadow-md"></h2>
+                <div id="math-sub" class="text-sm text-amber-400 font-mono mt-1 whitespace-pre-line"></div>
+            </div>
+        </div>
+
+        <!-- DIALOGUE UI LAYER -->
+        <div class="absolute bottom-0 w-full z-30 p-6 flex justify-center">
+            <div class="dialogue-box w-full max-w-4xl rounded-xl p-6 min-h-[140px] relative cursor-pointer group" id="dialogue-area">
+                
+                <!-- Speaker Name -->
+                <div id="speaker-name" class="absolute -top-3 left-6 bg-zinc-900 text-amber-500 px-4 py-1 text-xs font-bold uppercase tracking-widest border border-amber-900 transition-colors">
+                    System
+                </div>
+
+                <!-- Text Content -->
+                <p id="dialogue-text" class="text-lg text-zinc-300 leading-relaxed font-mono type-cursor"></p>
+                
+                <!-- Prompt -->
+                <div class="absolute bottom-4 right-4 text-xs text-amber-600 group-hover:text-amber-400 transition-colors">
+                    [CLICK TO CONTINUE]
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /* =========================================
+           1. THE SCRIPT (Story Data)
+           ========================================= */
+        const script = [
+            {
+                speaker: "System",
+                text: "The year is 1900. Physics is perfect. Except for one small problem with 'The Furnace'.",
+                simMode: "FURNACE_GLOW",
+                math: ["Blackbody Radiation", "Object Temperature: T"]
+            },
+            {
+                speaker: "Rayleigh",
+                text: "Consider a hot oven. The walls vibrate. These vibrations produce light waves (modes).",
+                simMode: "WAVE_MODES",
+                math: ["Standing Waves", "Modes inside a cavity"]
+            },
+            {
+                speaker: "Rayleigh",
+                text: "Classical mechanics says: Every wave mode gets the SAME average energy (Equipartition).",
+                simMode: "EQUIPARTITION",
+                math: ["Equipartition Theorem", "Energy per mode = kT"]
+            },
+            {
+                speaker: "Rayleigh",
+                text: "But there is a problem. There are infinite ways to fit tiny, high-frequency waves into the box.",
+                simMode: "UV_CATASTROPHE_PREP",
+                math: ["Density of States", "Increases as λ gets smaller"]
+            },
+            {
+                speaker: "System",
+                text: "If every tiny wave gets energy kT... the total energy sums to Infinity.",
+                simMode: "UV_CATASTROPHE_PLOT",
+                math: ["The UV Catastrophe", "Intensity → ∞ as Freq → ∞"]
+            },
+            {
+                speaker: "System",
+                text: "According to Classical Physics, opening your oven should blast you with infinite Ultraviolet radiation.",
+                simMode: "UV_CATASTROPHE_PLOT",
+                math: ["Prediction vs Reality", "Reality: Safe. Theory: Deadly."]
+            },
+            {
+                speaker: "Planck",
+                text: "This is unacceptable. Nature does not explode. The curve MUST come back down.",
+                simMode: "REAL_DATA_PLOT",
+                math: ["Experimental Data", "The Bell Curve"]
+            },
+            {
+                speaker: "Planck",
+                text: "I must make a desperate assumption. What if energy is not continuous like water?",
+                simMode: "DISCRETE_PACKETS",
+                math: ["Hypothesis", "Energy is Granular"]
+            },
+            {
+                speaker: "Planck",
+                text: "What if energy comes in packets? Quanta. E equals n times h times frequency.",
+                simMode: "DISCRETE_PACKETS",
+                math: ["Quantization", "E = n h f"]
+            },
+            {
+                speaker: "Planck",
+                text: "Low frequency packets are cheap (small hf). Nature can afford many of them.",
+                simMode: "LOW_FREQ_COST",
+                math: ["Low Frequency", "Energy Cost: Low"]
+            },
+            {
+                speaker: "Planck",
+                text: "But High frequency packets are expensive (large hf). Nature cannot afford to create them easily.",
+                simMode: "HIGH_FREQ_COST",
+                math: ["High Frequency", "Energy Cost: High"]
+            },
+            {
+                speaker: "System",
+                text: "Because the 'price' is too high, the high-frequency modes stay empty. The curve drops to zero.",
+                simMode: "PLANCK_LAW_PLOT",
+                math: ["Planck's Law", "Probability ~ e^(-E/kT)"]
+            },
+            {
+                speaker: "System",
+                text: "Simulation Active. Adjust the Temperature. Observe how the peak shifts (Wien's Law).",
+                simMode: "INTERACTIVE",
+                math: ["Interactive Mode", "Mouse X: Temperature"]
+            }
+        ];
+
+        /* =========================================
+           2. ENGINE & STATE
+           ========================================= */
+        const ui = {
+            dialogueBox: document.getElementById('dialogue-area'),
+            text: document.getElementById('dialogue-text'),
+            name: document.getElementById('speaker-name'),
+            mathTitle: document.getElementById('math-title'),
+            mathSub: document.getElementById('math-sub'),
+            mathOverlay: document.getElementById('math-overlay')
+        };
+
+        let state = {
+            lineIndex: 0,
+            isTyping: false,
+            simMode: 'FURNACE_GLOW',
+            mouseX: 0.3, // 0 to 1
+            time: 0
+        };
+
+        function typeWriter(text, cb) {
+            state.isTyping = true;
+            ui.text.innerHTML = "";
+            ui.dialogueBox.classList.add('pointer-events-none');
+            
+            let i = 0;
+            const speed = 20;
+
+            function step() {
+                if (i < text.length) {
+                    ui.text.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(step, speed);
+                } else {
+                    state.isTyping = false;
+                    ui.dialogueBox.classList.remove('pointer-events-none');
+                    if(cb) cb();
+                }
+            }
+            step();
+        }
+
+        function advanceStory() {
+            if (state.isTyping) return;
+            if (state.lineIndex >= script.length - 1) return;
+
+            state.lineIndex++;
+            renderScene(script[state.lineIndex]);
+        }
+
+        function renderScene(line) {
+            state.simMode = line.simMode;
+            
+            // Character styling
+            ui.name.innerText = line.speaker;
+            if(line.speaker === 'System') ui.name.style.color = '#f59e0b', ui.name.style.borderColor = '#f59e0b';
+            else if(line.speaker === 'Rayleigh') ui.name.style.color = '#ef4444', ui.name.style.borderColor = '#ef4444'; // Red (Failed theory)
+            else if(line.speaker === 'Planck') ui.name.style.color = '#10b981', ui.name.style.borderColor = '#10b981'; // Green (Success)
+
+            // Math Overlay
+            if(line.math[0] !== "") {
+                ui.mathTitle.innerText = line.math[0];
+                ui.mathSub.innerText = line.math[1];
+                ui.mathOverlay.style.opacity = "1";
+            } else {
+                ui.mathOverlay.style.opacity = "0";
+            }
+
+            typeWriter(line.text);
+        }
+
+        ui.dialogueBox.addEventListener('click', advanceStory);
+        document.getElementById('btn-skip').addEventListener('click', () => {
+            state.lineIndex = script.length - 1;
+            renderScene(script[state.lineIndex]);
+        });
+
+        /* =========================================
+           3. SIMULATION RENDERER
+           ========================================= */
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            state.mouseX = Math.max(0.1, Math.min(0.9, (e.clientX - rect.left) / rect.width));
+        });
+
+        // --- Physics Helpers ---
+        // Planck's Law (Scaled for visual)
+        function planck(lambda, T) {
+            // Simplified constants for visual: I(x) = (1/x^5) * (1 / (e^(1/xT) - 1))
+            // lambda (x) from 0.1 to 2.0
+            // T from 0.1 to 1.0
+            const c1 = 1;
+            const c2 = 0.2; 
+            if(lambda <= 0) return 0;
+            const power = (c1 / Math.pow(lambda, 5));
+            const probability = 1 / (Math.exp(c2 / (lambda * T)) - 1);
+            return power * probability;
+        }
+
+        // Rayleigh-Jeans Law
+        function rayleigh(lambda, T) {
+            // I(x) ~ T / x^4
+            if(lambda <= 0) return 0;
+            return (T * 0.05) / Math.pow(lambda, 4);
+        }
+
+        function loop() {
+            const W = canvas.width;
+            const H = canvas.height;
+            state.time += 0.05;
+
+            ctx.clearRect(0,0,W,H);
+
+            // --- Modes ---
+
+            if (state.simMode === 'FURNACE_GLOW') {
+                // Visual mood setting
+                const pulse = Math.sin(state.time) * 0.1 + 0.9;
+                const grad = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, W/2);
+                grad.addColorStop(0, `rgba(245, 158, 11, ${0.4 * pulse})`);
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0,0,W,H);
+                
+                // Draw a "box"
+                ctx.strokeStyle = '#f59e0b';
+                ctx.strokeRect(W/2 - 100, H/2 - 100, 200, 200);
+            }
+
+            else if (state.simMode === 'WAVE_MODES' || state.simMode === 'EQUIPARTITION') {
+                // Draw box
+                ctx.strokeStyle = '#444';
+                ctx.strokeRect(W/2 - 150, H/2 - 100, 300, 200);
+                
+                // Draw standing waves inside
+                ctx.lineWidth = 2;
+                const modes = [1, 2, 3, 5, 8];
+                modes.forEach((m, i) => {
+                    ctx.beginPath();
+                    ctx.strokeStyle = (state.simMode === 'EQUIPARTITION') ? '#ef4444' : `rgba(245, 158, 11, ${1 - i*0.15})`;
+                    const yBase = (H/2 - 80) + i * 35;
+                    for(let x=0; x<=300; x++) {
+                        // Standing wave formula
+                        const amp = (state.simMode === 'EQUIPARTITION') ? 15 : 15; // Same amp for all in classic
+                        const y = Math.sin(x * m * 0.02) * Math.sin(state.time * m * 0.5) * amp;
+                        ctx.lineTo((W/2 - 150) + x, yBase + y);
+                    }
+                    ctx.stroke();
+                });
+            }
+
+            else if (state.simMode === 'UV_CATASTROPHE_PREP') {
+                // Visualize packing smaller and smaller waves
+                // Draw Spectrum Grid
+                drawGraphAxes(ctx, W, H);
+            }
+
+            else if (state.simMode === 'UV_CATASTROPHE_PLOT' || state.simMode === 'REAL_DATA_PLOT') {
+                drawGraphAxes(ctx, W, H);
+                const T = 0.5;
+
+                // Draw Rayleigh-Jeans (RED / FAIL)
+                ctx.beginPath();
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 3;
+                for(let x=0; x<W-100; x+=5) {
+                    const lambda = map(x, 0, W, 0.1, 2.0); // Wavelength
+                    const yVal = rayleigh(lambda, T);
+                    const plotY = (H - 50) - yVal * 200;
+                    if (x===0) ctx.moveTo(50+x, plotY);
+                    else ctx.lineTo(50+x, plotY);
+                }
+                ctx.stroke();
+
+                // Draw Label
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText("Classical Theory (Rayleigh-Jeans)", W-250, 100);
+
+                if (state.simMode === 'REAL_DATA_PLOT') {
+                    // Draw Planck (GREEN / REAL)
+                    ctx.beginPath();
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 3;
+                    for(let x=0; x<W-100; x+=5) {
+                        const lambda = map(x, 0, W, 0.1, 2.0);
+                        const yVal = planck(lambda, T);
+                        const plotY = (H - 50) - yVal * 8000; // Scale factor diff
+                        if (x===0) ctx.moveTo(50+x, plotY);
+                        else ctx.lineTo(50+x, plotY);
+                    }
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#10b981';
+                    ctx.fillText("Reality (Planck)", W-250, 150);
+                }
+            }
+
+            else if (state.simMode === 'DISCRETE_PACKETS') {
+                // Visualizing Steps
+                const startX = W/2 - 100;
+                const startY = H - 100;
+                
+                // Continuous Ramp (Classical)
+                ctx.strokeStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(startX - 100, startY);
+                ctx.lineTo(startX - 100 + 50, startY - 100);
+                ctx.stroke();
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText("Continuous", startX - 120, startY + 20);
+
+                // Steps (Quantum)
+                ctx.fillStyle = '#10b981';
+                for(let i=0; i<5; i++) {
+                    const size = 20;
+                    ctx.fillRect(startX + 50, startY - i*size*1.5 - size, size, size);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = "10px monospace";
+                    ctx.fillText("hf", startX + 80, startY - i*size*1.5 - 5);
+                    ctx.fillStyle = '#10b981';
+                }
+                ctx.fillText("Discrete (n*hf)", startX + 50, startY + 20);
+            }
+
+            else if (state.simMode === 'LOW_FREQ_COST' || state.simMode === 'HIGH_FREQ_COST') {
+                const isHigh = state.simMode === 'HIGH_FREQ_COST';
+                const color = isHigh ? '#ef4444' : '#10b981';
+                const cost = isHigh ? "EXPENSIVE" : "CHEAP";
+                
+                // Draw "Bank Account" of Energy
+                ctx.fillStyle = '#fff';
+                ctx.font = "20px monospace";
+                ctx.fillText(`Available Thermal Energy (kT)`, W/2 - 100, 100);
+                
+                // Visualize Packet Size
+                const packetSize = isHigh ? 150 : 30;
+                
+                ctx.fillStyle = color;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                
+                // Draw the packet
+                ctx.fillRect(W/2 - 50, H/2 - packetSize/2, 100, packetSize);
+                ctx.strokeRect(W/2 - 50, H/2 - packetSize/2, 100, packetSize);
+                
+                ctx.fillStyle = '#fff';
+                ctx.fillText(`Cost: ${cost}`, W/2 - 40, H/2 + packetSize/2 + 30);
+                
+                if(isHigh) {
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillText("Probability: LOW", W/2 - 60, H/2 + packetSize/2 + 60);
+                } else {
+                    ctx.fillStyle = '#10b981';
+                    ctx.fillText("Probability: HIGH", W/2 - 60, H/2 + packetSize/2 + 60);
+                }
+            }
+
+            else if (state.simMode === 'PLANCK_LAW_PLOT' || state.simMode === 'INTERACTIVE') {
+                drawGraphAxes(ctx, W, H);
+                
+                let T = 0.4;
+                if (state.simMode === 'INTERACTIVE') {
+                    T = state.mouseX + 0.1; // 0.1 to 1.1
+                }
+
+                // Draw Planck Curve
+                ctx.beginPath();
+                // Color changes with Temp (Red -> Yellow -> White -> Blueish)
+                const hue = 60 * (T * 2); 
+                ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+                ctx.lineWidth = 4;
+                
+                // Fill
+                ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.2)`;
+                
+                const points = [];
+                for(let x=0; x<W-100; x+=5) {
+                    const lambda = map(x, 0, W, 0.1, 2.0);
+                    const yVal = planck(lambda, T);
+                    const plotY = (H - 50) - yVal * 6000;
+                    points.push({x: 50+x, y: plotY});
+                }
+
+                if(points.length > 0) {
+                    ctx.moveTo(points[0].x, H-50);
+                    for(let p of points) ctx.lineTo(p.x, p.y);
+                    ctx.lineTo(points[points.length-1].x, H-50);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                // UI Info
+                if (state.simMode === 'INTERACTIVE') {
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "16px monospace";
+                    ctx.fillText(`Temperature: ${(T*5000).toFixed(0)} K`, 60, 60);
+                    
+                    // Peak indicator
+                    const peakLambda = 0.2 / T; // Wien's approximation for visual
+                    // Find x for peak
+                    // map inverse
+                    // 0.1 -> 0, 2.0 -> W
+                    // x = (lambda - 0.1) * W / 1.9
+                    // Rough calc for visual marker
+                }
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        function drawGraphAxes(ctx, W, H) {
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(50, 50);
+            ctx.lineTo(50, H - 50); // Y axis
+            ctx.lineTo(W - 50, H - 50); // X axis
+            ctx.stroke();
+
+            ctx.fillStyle = '#888';
+            ctx.font = "12px monospace";
+            ctx.fillText("Frequency (UV →)", W - 150, H - 30);
+            ctx.fillText("Intensity", 60, 60);
+        }
+
+        function map(value, inMin, inMax, outMin, outMax) {
+            return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+        }
+        
+        // Start
+        renderScene(script[0]);
+        loop();
+
+    </script>
+</body>
+</html>

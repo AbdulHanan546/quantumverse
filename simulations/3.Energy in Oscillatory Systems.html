@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics: Energy in Oscillatory Systems</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Theme: Zinc-900 & Green-400 */
+        
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #4ade80; /* Green-400 */
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #27272a; /* Zinc-800 */
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        
+        /* Utility Classes */
+        .glow-text {
+            text-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
+        }
+        .glow-box {
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-black flex items-center justify-center min-h-screen p-4 font-sans select-none">
+
+    <!-- Main Container: 16/9 Aspect Ratio -->
+    <div class="relative w-full max-w-6xl aspect-video bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden border border-zinc-800 flex flex-col glow-box">
+        
+        <!-- Header -->
+        <div class="absolute top-0 left-0 w-full p-6 z-10 flex justify-between items-start pointer-events-none">
+            <div>
+                <h1 class="text-3xl font-bold text-green-400 glow-text tracking-wider uppercase">Energy in SHM</h1>
+                <p class="text-zinc-500 text-sm mt-1">Conservation of Energy in a Spring-Mass System</p>
+            </div>
+            <!-- Live Data Display -->
+            <div class="bg-zinc-950/80 backdrop-blur px-5 py-3 rounded-lg border border-zinc-800 text-xs text-zinc-400 flex flex-col gap-1 shadow-lg">
+                <div class="flex justify-between w-40">
+                    <span>KE (Kinetic):</span>
+                    <span id="disp-ke" class="text-green-400 font-mono font-bold">0.0J</span>
+                </div>
+                <div class="flex justify-between w-40">
+                    <span>PE (Potential):</span>
+                    <span id="disp-pe" class="text-zinc-400 font-mono font-bold">0.0J</span>
+                </div>
+                <div class="w-full h-px bg-zinc-700 my-1"></div>
+                <div class="flex justify-between w-40">
+                    <span class="text-green-200">Total Energy:</span>
+                    <span id="disp-te" class="text-white font-mono font-bold">0.0J</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="flex-grow relative w-full h-full bg-zinc-900" id="canvas-container">
+            <canvas id="simCanvas" class="block w-full h-full"></canvas>
+            
+            <!-- Graph Legend (Overlay on Canvas) -->
+            <div class="absolute top-24 right-6 text-[10px] text-zinc-500 flex flex-col gap-2 pointer-events-none">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 bg-green-500/20 border border-green-500 rounded-sm"></div>
+                    <span>Kinetic Energy</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 bg-zinc-700 border border-zinc-500 rounded-sm"></div>
+                    <span>Potential Energy</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls UI -->
+        <div class="absolute bottom-0 w-full bg-zinc-950/90 backdrop-blur border-t border-zinc-800 p-6 z-20">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8 items-center">
+                
+                <!-- Mass Control -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Mass (m)</label>
+                        <span id="val-mass" class="text-xs text-green-400 font-mono">2.0 kg</span>
+                    </div>
+                    <input type="range" id="mass" min="1" max="10" step="0.5" value="2.0">
+                </div>
+
+                <!-- Spring Constant Control -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Spring Constant (k)</label>
+                        <span id="val-k" class="text-xs text-green-400 font-mono">5.0 N/m</span>
+                    </div>
+                    <input type="range" id="k" min="1" max="20" step="1" value="5.0">
+                </div>
+
+                <!-- Amplitude Control -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Amplitude (A)</label>
+                        <span id="val-amp" class="text-xs text-green-400 font-mono">100 px</span>
+                    </div>
+                    <input type="range" id="amp" min="20" max="200" step="10" value="150">
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex gap-4 justify-end">
+                    <button id="btn-pause" class="flex-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-green-400 border border-green-900/50 rounded transition-colors font-medium text-xs uppercase tracking-wider">
+                        Play / Pause
+                    </button>
+                    <button id="btn-reset" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded transition-colors font-medium text-xs uppercase tracking-wider">
+                        Reset
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration & Setup ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        // Physics State
+        let state = {
+            t: 0,
+            mass: 2.0,
+            k: 5.0,
+            amp: 150, // Pixels
+            isRunning: true,
+            dt: 0.05
+        };
+
+        // Graph History
+        const maxHistory = 300;
+        let history = []; // Stores objects { ke, pe, total }
+
+        // DOM Elements
+        const ui = {
+            mass: document.getElementById('mass'),
+            k: document.getElementById('k'),
+            amp: document.getElementById('amp'),
+            valMass: document.getElementById('val-mass'),
+            valK: document.getElementById('val-k'),
+            valAmp: document.getElementById('val-amp'),
+            dispKe: document.getElementById('disp-ke'),
+            dispPe: document.getElementById('disp-pe'),
+            dispTe: document.getElementById('disp-te'),
+            btnPause: document.getElementById('btn-pause'),
+            btnReset: document.getElementById('btn-reset'),
+        };
+
+        // Resize Canvas to fit container
+        let width, height;
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            // High DPI support
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Physics Engine ---
+        function calculatePhysics(time) {
+            // Omega (Angular Frequency) = sqrt(k / m)
+            const w = Math.sqrt(state.k / state.mass);
+            
+            // Displacement x(t) = A * cos(wt)
+            const x = state.amp * Math.cos(w * time);
+            
+            // Velocity v(t) = -A * w * sin(wt)
+            // Note: In pixel simulation, velocity is pixels/frame, but for energy calc 
+            // we use the physics relation directly to ensure KE+PE = const visually.
+            const v = -state.amp * w * Math.sin(w * time);
+
+            // Energy Calculations
+            // Scale down energy values for display/graphing purposes
+            // PE = 0.5 * k * x^2
+            // KE = 0.5 * m * v^2
+            // We need to normalize x back to meters for 'real' units or just use arbitrary units.
+            // Let's use arbitrary units but consistent:
+            
+            const pe = 0.5 * state.k * Math.pow(x, 2);
+            const ke = 0.5 * state.mass * Math.pow(v, 2); 
+            const total = pe + ke;
+
+            return { x, v, pe, ke, total };
+        }
+
+        // --- Drawing Functions ---
+
+        function drawSpring(startX, startY, endX, endY) {
+            ctx.strokeStyle = '#71717a'; // Zinc-500
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+
+            const segments = 12;
+            const dist = endX - startX;
+            const step = dist / segments;
+
+            for (let i = 1; i <= segments; i++) {
+                const x = startX + step * i;
+                const y = startY + ((i % 2 === 0) ? 0 : (i === segments ? 0 : 20 * (i%2 === 1 ? -1 : 1)));
+                
+                // Make the zig zags
+                if (i === segments) {
+                     ctx.lineTo(x, endY);
+                } else {
+                    const midX = startX + step * (i - 0.5);
+                    const offset = 15; // zigzag height
+                    const dir = (i % 2 === 0) ? 1 : -1;
+                    ctx.lineTo(midX, startY + dir * offset);
+                    ctx.lineTo(x, startY);
+                }
+            }
+            ctx.stroke();
+        }
+
+        function drawGraph(data) {
+            if (history.length < 2) return;
+
+            // Define Graph Area (Top half of screen)
+            const graphH = height * 0.4;
+            const graphY = 50; // padding top
+            const graphX = 50;
+            const graphW = width - 100;
+            
+            // Draw Axis
+            ctx.strokeStyle = '#3f3f46'; // Zinc-700
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(graphX, graphY + graphH);
+            ctx.lineTo(graphX + graphW, graphY + graphH); // X axis
+            ctx.moveTo(graphX, graphY);
+            ctx.lineTo(graphX, graphY + graphH); // Y axis
+            ctx.stroke();
+
+            // Find Max Energy for scaling
+            // Use current total energy as max scale reference to keep it steady
+            const maxE = data.total * 1.2 || 100; 
+
+            // Helper to map Value to Y coord
+            const mapY = (val) => (graphY + graphH) - (val / maxE) * graphH;
+            const mapX = (i) => graphX + (i / (maxHistory - 1)) * graphW;
+
+            // 1. Draw Potential Energy (Area under curve logic or Line)
+            // Let's draw PE as a filled zinc area
+            ctx.fillStyle = 'rgba(161, 161, 170, 0.2)'; // Zinc-400 low opacity
+            ctx.beginPath();
+            ctx.moveTo(mapX(0), graphY + graphH);
+            for(let i=0; i<history.length; i++) {
+                ctx.lineTo(mapX(i), mapY(history[i].pe));
+            }
+            ctx.lineTo(mapX(history.length-1), graphY + graphH);
+            ctx.fill();
+            
+            // PE Outline
+            ctx.strokeStyle = '#a1a1aa'; // Zinc-400
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=0; i<history.length; i++) {
+                if(i===0) ctx.moveTo(mapX(i), mapY(history[i].pe));
+                else ctx.lineTo(mapX(i), mapY(history[i].pe));
+            }
+            ctx.stroke();
+
+            // 2. Draw Kinetic Energy
+            // We will draw KE as a Green Line on top
+            ctx.strokeStyle = '#4ade80'; // Green-400
+            ctx.shadowColor = '#4ade80';
+            ctx.shadowBlur = 10;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for(let i=0; i<history.length; i++) {
+                if(i===0) ctx.moveTo(mapX(i), mapY(history[i].ke));
+                else ctx.lineTo(mapX(i), mapY(history[i].ke));
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0; // reset
+
+            // 3. Total Energy Line (Should be flat)
+            ctx.strokeStyle = '#ffffff';
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const yTotal = mapY(data.total);
+            ctx.moveTo(graphX, yTotal);
+            ctx.lineTo(graphX + graphW, yTotal);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function animate() {
+            if (!state.isRunning) return;
+
+            // Clear Screen
+            ctx.clearRect(0, 0, width, height);
+
+            // Calculate Physics
+            const data = calculatePhysics(state.t);
+
+            // Update DOM text
+            ui.dispKe.innerText = (data.ke / 1000).toFixed(2) + 'J';
+            ui.dispPe.innerText = (data.pe / 1000).toFixed(2) + 'J';
+            ui.dispTe.innerText = (data.total / 1000).toFixed(2) + 'J';
+
+            // Update History for Graph
+            history.push(data);
+            if (history.length > maxHistory) history.shift();
+
+            // --- Render ---
+
+            // 1. Draw Graph (Top Section)
+            drawGraph(data);
+
+            // 2. Draw Physical System (Bottom Section)
+            const floorY = height * 0.75;
+            const centerX = width / 2;
+            const wallX = centerX - 300;
+            
+            // Draw Floor
+            ctx.strokeStyle = '#27272a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, floorY + 41);
+            ctx.lineTo(width, floorY + 41);
+            ctx.stroke();
+
+            // Draw Wall
+            ctx.fillStyle = '#27272a';
+            ctx.fillRect(wallX - 20, floorY - 100, 20, 140);
+
+            // Draw Spring
+            // Spring connects wall to block (adjusted for block position)
+            const blockX = centerX + data.x;
+            drawSpring(wallX, floorY, blockX - 40, floorY);
+
+            // Draw Block (Mass)
+            const blockSize = 80;
+            ctx.fillStyle = '#18181b'; // Zinc-950
+            ctx.strokeStyle = '#4ade80'; // Green border
+            ctx.lineWidth = 2;
+            ctx.shadowColor = '#4ade80';
+            ctx.shadowBlur = 15;
+            
+            ctx.fillRect(blockX - blockSize/2, floorY - blockSize/2, blockSize, blockSize);
+            ctx.strokeRect(blockX - blockSize/2, floorY - blockSize/2, blockSize, blockSize);
+            
+            // Block Label (M)
+            ctx.fillStyle = '#4ade80';
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m', blockX, floorY);
+
+            // Draw Equilibrium Line
+            ctx.strokeStyle = '#3f3f46';
+            ctx.setLineDash([2, 4]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX, floorY - 60);
+            ctx.lineTo(centerX, floorY + 60);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Equilibrium Label
+            ctx.fillStyle = '#52525b';
+            ctx.fillText('x=0', centerX, floorY + 70);
+
+            // Increment Time
+            state.t += state.dt;
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- Event Listeners ---
+        function updateParams() {
+            state.mass = parseFloat(ui.mass.value);
+            state.k = parseFloat(ui.k.value);
+            state.amp = parseFloat(ui.amp.value);
+
+            ui.valMass.innerText = state.mass.toFixed(1) + ' kg';
+            ui.valK.innerText = state.k.toFixed(1) + ' N/m';
+            ui.valAmp.innerText = state.amp + ' px';
+            
+            // Clear history on major changes to avoid graph jumping wildly
+            // history = []; 
+        }
+
+        [ui.mass, ui.k, ui.amp].forEach(el => {
+            el.addEventListener('input', updateParams);
+        });
+
+        ui.btnPause.addEventListener('click', () => {
+            state.isRunning = !state.isRunning;
+            if (state.isRunning) animate();
+        });
+
+        ui.btnReset.addEventListener('click', () => {
+            state.t = 0;
+            history = [];
+            ui.mass.value = 2.0;
+            ui.k.value = 5.0;
+            ui.amp.value = 150;
+            updateParams();
+            if (!state.isRunning) {
+                state.isRunning = true;
+                animate();
+            }
+        });
+
+        // Start Animation
+        animate();
+
+    </script>
+</body>
+</html>

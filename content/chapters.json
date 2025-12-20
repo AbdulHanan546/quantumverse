@@ -1,0 +1,377 @@
+[
+  {
+    "id": 1,
+    "unit": 1,
+    "title": "Oscillations & Periodic Motion",
+    "description": "This foundational chapter introduces the mathematics and physics of periodic motion, starting with Simple Harmonic Motion (SHM). It explores how systems oscillate about an equilibrium position, defining key concepts like angular frequency, phase, and phase space representation. The chapter establishes how energy continuously transforms between kinetic and potential forms in an oscillatory system, providing the essential language for understanding wave phenomena that follow.",
+    "thumbnail": "1.jpg",
+    "topics": [
+      {
+        "id": 1,
+        "name": "Simple Harmonic Motion (SHM)",
+        "description": "The study of oscillatory motion where the restoring force is directly proportional to the displacement, characterized by sinusoidal motion in time. It serves as the fundamental model for all periodic vibrations."
+      },
+      {
+        "id": 2,
+        "name": "Angular Frequency, Phase, and Phase Space",
+        "description": "Introduction of angular frequency (ω) as the rate of oscillation, phase as the argument of the oscillatory function determining its position in the cycle, and phase space as a geometric representation of the system's state (position vs momentum)."
+      },
+      {
+        "id": 3,
+        "name": "Energy in Oscillatory Systems",
+        "description": "Analysis of how total mechanical energy remains constant in ideal SHM, continuously sloshing between kinetic energy (maximum at equilibrium) and potential energy (maximum at turning points)."
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "unit": 1,
+    "title": "Wave Propagation",
+    "description": "Building on oscillations, this chapter examines how disturbances propagate through space as waves. It distinguishes between traveling waves, which transport energy, and standing waves, which result from confinement and interference. The derivation and solution of the one-dimensional wave equation provides a mathematical framework, while exploring how wave speed is intrinsically tied to the properties of the medium.",
+    "thumbnail": "2.avif",
+    "topics": [
+      {
+        "id": 4,
+        "name": "Traveling Waves vs Standing Waves",
+        "description": "Contrasts waves that move through space carrying energy (traveling waves) with wave patterns formed by the superposition of waves trapped in a region, resulting in stationary nodes and antinodes (standing waves)."
+      },
+      {
+        "id": 5,
+        "name": "One-Dimensional Wave Equation",
+        "description": "Derivation and solution of the partial differential equation ∂²ψ/∂t² = v² ∂²ψ/∂x², which governs wave motion in one dimension and whose general solution is any function of the form f(x ± vt)."
+      },
+      {
+        "id": 6,
+        "name": "Wave Speed and Medium Dependence",
+        "description": "Examination of how the speed of a wave (e.g., v = √(T/μ) for a string) is determined not by the source but by the inertial and elastic properties of the medium through which it travels."
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "unit": 1,
+    "title": "Superposition & Interference",
+    "description": "This chapter delves into the core linear principle that when two or more waves overlap, the net displacement is the sum of the individual displacements. This leads to the rich phenomena of interference—both constructive and destructive—and the related effect of beats, where slightly different frequencies produce a periodic variation in amplitude. These concepts are fundamental for understanding quantum superposition later.",
+    "thumbnail": "3.jpg",
+    "topics": [
+      {
+        "id": 7,
+        "name": "Principle of Superposition",
+        "description": "The fundamental concept that when two or more waves meet in a linear medium, the resultant wave function is the algebraic sum of the individual wave functions."
+      },
+      {
+        "id": 8,
+        "name": "Constructive and Destructive Interference",
+        "description": "The additive (constructive) or subtractive (destructive) combination of waves based on their relative phase, leading to regions of enhanced or diminished amplitude, central to all wave phenomena."
+      },
+      {
+        "id": 9,
+        "name": "Beats and Amplitude Modulation",
+        "description": "The periodic variation in amplitude (beats) resulting from the superposition of two waves with slightly different frequencies, demonstrating a form of temporal interference."
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "unit": 1,
+    "title": "Fourier Thinking",
+    "description": "Introducing a powerful mathematical perspective, this chapter shows how any complex waveform can be decomposed into a sum of simple sinusoidal components (Fourier series). This thinking enables the construction of localized wave packets and leads to the concept of dispersion—the dependence of wave speed on frequency—which crucially affects how wave packets spread out over time, a key insight for quantum mechanics.",
+    "thumbnail": "4.png",
+    "topics": [
+      {
+        "id": 10,
+        "name": "Fourier Series (Conceptual Foundation)",
+        "description": "The idea that any periodic function can be represented as an infinite sum of sine and cosine functions with specific amplitudes and frequencies, providing a link between time and frequency domains."
+      },
+      {
+        "id": 11,
+        "name": "Wave Packets",
+        "description": "Construction of a localized pulse or group of waves by superposing many sinusoidal waves with a range of frequencies and wave numbers, creating a waveform confined in space."
+      },
+      {
+        "id": 12,
+        "name": "Dispersion of Wave Packets",
+        "description": "The phenomenon where different frequency components of a wave packet travel at different speeds, causing the packet to spread out (disperse) as it propagates, which is absent in non-dispersive media."
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "unit": 1,
+    "title": "Boundary & Energy Transport",
+    "description": "The final chapter of the waves unit explores what happens when waves encounter boundaries—reflecting, transmitting, or leading to resonance if conditions are right. It quantifies the flow of energy and intensity carried by waves and concludes with a critical discussion distinguishing the transport of energy from the transport of information, setting the stage for relativistic and quantum considerations.",
+    "thumbnail": "5.jpg",
+    "topics": [
+      {
+        "id": 13,
+        "name": "Reflection and Transmission of Waves",
+        "description": "Analysis of what happens when a wave encounters a boundary between two media: part of the wave reflects back, and part transmits into the new medium, with coefficients determined by impedance."
+      },
+      {
+        "id": 14,
+        "name": "Resonance Phenomena",
+        "description": "The dramatic increase in amplitude that occurs when a periodic driving force is applied at a system's natural frequency, a key concept for understanding atomic and molecular structure."
+      },
+      {
+        "id": 15,
+        "name": "Energy Flow and Intensity",
+        "description": "Quantification of the rate at which waves transport energy (power) and the power per unit area (intensity), often proportional to the square of the wave amplitude."
+      },
+      {
+        "id": 16,
+        "name": "Information vs Energy Transport",
+        "description": "Conceptual distinction between the speed at which wave energy propagates (group/phase speed) and the maximum speed at which a signal or information can be sent, foreshadowing causality limits."
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "unit": 2,
+    "title": "Failure of Classical Physics",
+    "description": "This chapter marks the beginning of the quantum revolution by examining the glaring failures of 19th-century classical physics. The inability to explain the spectrum of blackbody radiation led to the 'ultraviolet catastrophe,' where classical theory predicted infinite energy at short wavelengths. Max Planck's desperate but successful fix—the quantization of energy—is introduced as the first crack in the classical edifice.",
+    "thumbnail": "6.jpg",
+    "topics": [
+      {
+        "id": 17,
+        "name": "Blackbody Radiation Problem",
+        "description": "The challenge of explaining the spectrum of electromagnetic radiation emitted by a perfect absorber/emitter (a blackbody) based solely on classical thermodynamics and electromagnetism."
+      },
+      {
+        "id": 18,
+        "name": "Ultraviolet Catastrophe",
+        "description": "The failed classical prediction (Rayleigh-Jeans Law) that radiation intensity diverges to infinity at short wavelengths (high frequencies), implying an impossible infinite energy output."
+      },
+      {
+        "id": 19,
+        "name": "Planck’s Quantization Hypothesis",
+        "description": "Planck's revolutionary proposal that the energy of electromagnetic oscillators in the blackbody walls is quantized in discrete units E = nhν, where n is an integer and h is Planck's constant, which resolved the catastrophe."
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "unit": 2,
+    "title": "Light as a Particle",
+    "description": "Challenging the pure wave model of light, this chapter presents definitive experiments that forced physicists to treat light as composed of particle-like quanta, or photons. The photoelectric effect demonstrated that light energy is delivered in discrete packets, while Compton scattering showed that photons carry momentum, cementing the particle nature of electromagnetic radiation.",
+    "thumbnail": "7.jpg",
+    "topics": [
+      {
+        "id": 20,
+        "name": "Photoelectric Effect",
+        "description": "The emission of electrons from a metal surface when illuminated by light, inexplicable by wave theory. Einstein explained it by proposing light quanta (photons) with energy E = hν, where the electron's kinetic energy depends on frequency, not intensity."
+      },
+      {
+        "id": 21,
+        "name": "Photon Energy and Momentum",
+        "description": "The quantization of light energy into photons (E = hν) and the associated particle-like momentum (p = h/λ), establishing light as having both wave-like and particle-like properties."
+      },
+      {
+        "id": 22,
+        "name": "Compton Scattering",
+        "description": "The scattering of X-rays by electrons, where the shift in wavelength of the scattered radiation can only be explained by treating the X-rays as particles (photons) colliding elastically with electrons, confirming photon momentum."
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "unit": 2,
+    "title": "Matter as a Wave",
+    "description": "In a stunning conceptual reversal, Louis de Broglie proposed that if waves can behave like particles, perhaps particles like electrons can behave like waves. This chapter introduces the de Broglie hypothesis, assigning a wavelength to all matter, and examines the experimental confirmation via electron diffraction in the Davisson-Germer experiment, unifying the wave-particle duality for both light and matter.",
+    "thumbnail": "8.webp",
+    "topics": [
+      {
+        "id": 23,
+        "name": "de Broglie Hypothesis",
+        "description": "The revolutionary proposal that all matter has an associated wavelength, λ = h/p, where p is momentum, extending wave-particle duality from light to material particles like electrons."
+      },
+      {
+        "id": 24,
+        "name": "Matter Waves and Wavelength",
+        "description": "Exploration of the implications of the de Broglie relation, calculating wavelengths for objects from electrons to baseballs, and the conditions under which wave effects become significant (typically for small momentum/mass)."
+      },
+      {
+        "id": 25,
+        "name": "Davisson–Germer Experiment",
+        "description": "The landmark experiment where electrons scattered from a nickel crystal produced a diffraction pattern, providing direct experimental confirmation of the wave nature of electrons and validating de Broglie's hypothesis."
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "unit": 2,
+    "title": "Atomic Structure",
+    "description": "This chapter traces the development of the atomic model from Rutherford's discovery of the nucleus—a tiny, dense, positively charged core—to Bohr's semi-classical quantum model of the hydrogen atom. Bohr's brilliant postulation of quantized electron orbits and angular momentum successfully explained atomic stability and the discrete hydrogen spectrum, though it was an incomplete hybrid theory.",
+    "thumbnail": "9.webp",
+    "topics": [
+      {
+        "id": 26,
+        "name": "Rutherford Scattering Experiment",
+        "description": "The experiment where alpha particles were scattered by a thin gold foil, revealing that atoms consist of a small, dense, positively charged nucleus, overturning the plum pudding model."
+      },
+      {
+        "id": 27,
+        "name": "Bohr Model of the Hydrogen Atom",
+        "description": "Bohr's semi-classical model proposing that electrons orbit the nucleus only in certain stable, quantized orbits with angular momentum L = nħ, and jump between orbits by emitting/absorbing photons."
+      },
+      {
+        "id": 28,
+        "name": "Quantized Atomic Energy Levels",
+        "description": "The consequence of the Bohr model: electrons in atoms can only occupy specific energy levels E_n, leading to discrete line spectra when transitions occur between these levels."
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "unit": 2,
+    "title": "Probabilistic Nature of Physics",
+    "description": "As the implications of quantum phenomena sink in, this chapter confronts the profound philosophical shift from determinism to probability. Wave-particle duality implies that objects cannot be fully described as just particles or just waves. The act of measurement itself becomes limited by inherent uncertainties, suggesting that probability is not just a measure of our ignorance but a fundamental feature of nature.",
+    "thumbnail": "10.webp",
+    "topics": [
+      {
+        "id": 29,
+        "name": "Wave–Particle Duality",
+        "description": "The central quantum concept that entities like electrons and photons exhibit both wave-like (interference, diffraction) and particle-like (localized detection, momentum transfer) properties, depending on the experimental context."
+      },
+      {
+        "id": 30,
+        "name": "Probability vs Determinism",
+        "description": "The philosophical shift from the classical deterministic worldview, where the future is perfectly predictable given initial conditions, to a quantum worldview where outcomes are fundamentally probabilistic."
+      },
+      {
+        "id": 31,
+        "name": "Experimental Limits of Measurement",
+        "description": "Early indications that measurement in quantum theory is not a passive act of observation but an interaction that inherently disturbs the system, hinting at the upcoming uncertainty principle."
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "unit": 3,
+    "title": "Quantum State & Wavefunction",
+    "description": "This chapter introduces the core mathematical object of quantum mechanics: the wavefunction ψ. It represents the quantum state of a system, a complete description of its properties. The physical meaning of ψ is probabilistic—its absolute square gives the probability density for finding the particle. This interpretation, born from the work of Max Born, replaces definite trajectories with probabilistic distributions.",
+    "thumbnail": "11.jpg",
+    "topics": [
+      {
+        "id": 32,
+        "name": "Concept of a Quantum State",
+        "description": "The complete description of a quantum system, encapsulating all information needed to predict the probabilities of measurement outcomes, mathematically represented by the wavefunction or a state vector."
+      },
+      {
+        "id": 33,
+        "name": "Wavefunction (ψ) and Its Physical Meaning",
+        "description": "Introduction of the complex-valued wavefunction ψ(x,t) as the mathematical representation of the quantum state for a particle in space. Its physical interpretation is provided by the Born rule."
+      },
+      {
+        "id": 34,
+        "name": "Probability Density Interpretation",
+        "description": "The Born rule: |ψ(x,t)|² dx gives the probability of finding the particle between x and x+dx at time t. This connects the abstract wavefunction to measurable outcomes."
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "unit": 3,
+    "title": "Operators & Measurement",
+    "description": "Here, the formalism of quantum mechanics is developed further. Physical observables like position, momentum, and energy are represented not by numbers but by mathematical operators that act on the wavefunction. The chapter defines expectation values—the average result of many measurements—and introduces the critical measurement postulate, which describes the 'collapse' of the wavefunction upon observation.",
+    "thumbnail": "12.jpg",
+    "topics": [
+      {
+        "id": 35,
+        "name": "Observables as Operators",
+        "description": "The principle that every physical observable (position, momentum, energy) is represented by a specific mathematical operator (e.g., momentum: -iħ ∂/∂x) that acts on the wavefunction to extract measurable information."
+      },
+      {
+        "id": 36,
+        "name": "Expectation Values",
+        "description": "The quantum mechanical average or mean value of an observable, calculated as ⟨A⟩ = ∫ ψ* Â ψ dx, representing the expected average result over many identical measurements."
+      },
+      {
+        "id": 37,
+        "name": "Measurement Postulate",
+        "description": "The rule that measuring an observable forces the system into an eigenstate of the corresponding operator, with the measured value being the corresponding eigenvalue. This is the infamous 'collapse of the wavefunction.'"
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "unit": 3,
+    "title": "Quantum Dynamics",
+    "description": "The time evolution of the quantum state is governed by the Schrödinger equation, the analog of Newton's second law in quantum mechanics. This chapter presents this central equation and explores its special solutions: stationary states. These are states of definite energy (eigenstates of the Hamiltonian) where the probability density does not change with time, leading to the concept of quantized energy eigenvalues.",
+    "thumbnail": "13.jfif",
+    "topics": [
+      {
+        "id": 38,
+        "name": "Time-Dependent Schrödinger Equation",
+        "description": "The fundamental equation of motion in non-relativistic quantum mechanics: iħ ∂ψ/∂t = Ĥ ψ, which deterministically governs how the wavefunction evolves over time."
+      },
+      {
+        "id": 39,
+        "name": "Stationary States",
+        "description": "Special solutions to the Schrödinger equation of the form ψ(x,t) = φ(x) e^(-iEt/ħ), where the time dependence is a pure phase factor and the spatial probability density |φ(x)|² is constant in time."
+      },
+      {
+        "id": 40,
+        "name": "Energy Eigenvalues",
+        "description": "For a system in a stationary state, the energy is sharply defined. Solving the time-independent Schrödinger equation Ĥ φ = E φ yields the set of allowed discrete or continuous energy values (eigenvalues) for the system."
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "unit": 3,
+    "title": "Canonical Quantum Systems",
+    "description": "Applying the full quantum formalism to simple, solvable model systems reveals quintessential quantum behaviors. The particle in a box demonstrates quantized energy levels and zero-point energy. Tunneling shows that particles can leak through classically forbidden barriers. Finite wells illustrate bound states and the transition to continuous spectra, providing concrete intuition for quantum effects.",
+    "thumbnail": "14.avif",
+    "topics": [
+      {
+        "id": 41,
+        "name": "Particle in a One-Dimensional Box",
+        "description": "A confined particle in an infinite potential well, the simplest model system that yields quantized energy levels E_n ∝ n², discrete wavefunctions with nodes, and a non-zero ground state energy (zero-point energy)."
+      },
+      {
+        "id": 42,
+        "name": "Quantum Tunneling",
+        "description": "The purely quantum phenomenon where a particle has a non-zero probability of being found in a region where its total energy is less than the potential energy, i.e., penetrating through a classically impenetrable barrier."
+      },
+      {
+        "id": 43,
+        "name": "Finite Potential Wells",
+        "description": "Study of bound states in a well of finite depth, comparing results to the infinite well, and exploring the existence of a finite number of bound states and the possibility of escape (tunneling out)."
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "unit": 3,
+    "title": "Limits & Interpretation",
+    "description": "The final chapter grapples with the deep conceptual implications and limits of quantum theory. The Heisenberg Uncertainty Principle sets fundamental bounds on simultaneous knowledge of complementary variables. The concepts of superposition and complementarity challenge classical intuition. The chapter also explores the unresolved puzzle of measurement (collapse vs. unitary evolution) and examines how the familiar classical world emerges from quantum mechanics in the appropriate limit.",
+    "thumbnail": "15.jpg",
+    "topics": [
+      {
+        "id": 44,
+        "name": "Heisenberg Uncertainty Principle",
+        "description": "The fundamental limit Δx Δp ≥ ħ/2, stating that it is impossible to simultaneously know both the position and momentum of a particle with arbitrary precision. A consequence of wave-like nature and operator non-commutation."
+      },
+      {
+        "id": 45,
+        "name": "Complementarity Principle",
+        "description": "The principle, articulated by Bohr, that quantum objects have complementary properties (like position and momentum, or wave and particle behavior) that cannot be observed or measured simultaneously."
+      },
+      {
+        "id": 46,
+        "name": "Quantum Superposition States",
+        "description": "States where a system exists in a linear combination of two or more distinct classical states (like two different positions or energies) simultaneously, exemplified by Schrödinger's cat thought experiment."
+      },
+      {
+        "id": 47,
+        "name": "Collapse vs Time Evolution",
+        "description": "The tension between the two types of change in quantum mechanics: the smooth, deterministic evolution via the Schrödinger equation and the sudden, probabilistic 'collapse' during measurement—the central puzzle of quantum foundations."
+      },
+      {
+        "id": 48,
+        "name": "Classical Limit of Quantum Mechanics",
+        "description": "Exploration of how the strange predictions of quantum mechanics smoothly transition to the familiar predictions of classical mechanics in the limit of large quantum numbers, large masses, or actions much larger than ħ (the correspondence principle)."
+      }
+    ]
+  }
+]

@@ -2,51 +2,33 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
-import { getAllChapterAggregates } from "../../api/chapterProgress";
+// import { getAllChapterAggregates } from "../../api/chapterProgress"; // Removed
 import GenerateModal from "../../components/GenerateModal";
 import { 
-  Play, 
   BookOpen, 
-  CheckCircle2, 
   Atom, 
   Waves, 
   Zap,
-  MoreHorizontal,
   ArrowRight,
   User2
 } from "lucide-react";
+import { cms, cmsUrl } from "../../api/cms";
 
 // --- Types ---
 interface Topic {
   id: number;
-  documentId: string;
   name: string;
-  description?: string;
-}
-
-interface Thumbnail {
-  url: string;
-  width?: number;
-  height?: number;
+  description: string;
 }
 
 interface Chapter {
   id: number;
-  documentId: string;
-  name: string;
-  unit: string;
-  order: number;
+  documentId: string; // We will use ID as string here
+  name: string; // Mapped from 'title'
+  unit: string; // Mapped from 1, 2, 3
   description: string;
-  thumbnail?: Thumbnail;
+  thumbnail: string; // String filename like "1.jpg"
   topics: Topic[];
-}
-
-interface Aggregates {
-  [key: string]: {
-    totalTopics: number;
-    completedTopics: number;
-    averagePercent: number;
-  };
 }
 
 // --- Configuration Data ---
@@ -80,6 +62,13 @@ const UNIT_CONFIG: Record<string, {
   },
 };
 
+// Mapping numeric IDs from JSON to String Keys
+const UNIT_ID_MAP: Record<number, string> = {
+  1: "Waves",
+  2: "Modern Physics",
+  3: "Quantum Mechanics"
+};
+
 const UNITS = Object.keys(UNIT_CONFIG);
 
 export default function StudentHome() {
@@ -90,7 +79,6 @@ export default function StudentHome() {
   // State
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
-  const [aggregates, setAggregates] = useState<Aggregates>({});
   const [modalOpen, setModalOpen] = useState(false);
 
   // Get current unit from URL or default
@@ -101,37 +89,20 @@ export default function StudentHome() {
   useEffect(() => {
     async function loadChapters() {
       try {
-        const { data } = await axios.get(
-          "https://smart-dance-067fc7b146.strapiapp.com/api/chapters?sort[0]=order:asc&populate[thumbnail]=true&populate[topics][fields][0]=id&pagination[pageSize]=999&pagination[page]=1"
-        );
+        // FETCHING LOCAL JSON
+        const { data } = await cms.get("/chapters.json");
 
-        const formatted: Chapter[] = data.data.map((chapter: any) => ({
+        const formatted: Chapter[] = data.map((chapter: any) => ({
           id: chapter.id,
-          documentId: chapter.documentId,
-          name: chapter.name,
+          documentId: chapter.id.toString(), // Using ID as documentId for routing
+          name: chapter.title, // Mapping 'title' to 'name'
           description: chapter.description,
-          unit: chapter.unit || "Waves",
-          order: chapter.order || 99,
+          unit: UNIT_ID_MAP[chapter.unit] || "Waves", // Mapping 1 -> Waves
           thumbnail: chapter.thumbnail,
           topics: chapter.topics || [],
         }));
 
         setChapters(formatted);
-
-        try {
-          const aggs = await getAllChapterAggregates();
-          const map: Aggregates = {};
-          for (const a of aggs) {
-            map[a.chapterDocumentId] = {
-              totalTopics: a.totalTopics,
-              completedTopics: a.completedTopics,
-              averagePercent: a.averagePercent,
-            };
-          }
-          setAggregates(map);
-        } catch (e) {
-          // ignore
-        }
       } catch (err) {
         console.error("Failed to fetch chapters:", err);
       } finally {
@@ -144,45 +115,40 @@ export default function StudentHome() {
 
   // --- Derived State ---
   const filteredChapters = useMemo(() => {
-    return chapters
-      .filter((c) => c.unit === currentUnit)
-      .sort((a, b) => a.order - b.order);
+    return chapters.filter((c) => c.unit === currentUnit);
+    // Removed sort by 'order' since JSON doesn't have it, relying on array index naturally
   }, [chapters, currentUnit]);
 
   // --- Handlers ---
   const handleUnitChange = (unit: string) => {
     setSearchParams({ unit });
-    // Scroll to top smoothly
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const openChapter = (chapter: Chapter) => {
+    // Assuming routing still works with ID
     navigate(`/chapter/${chapter.documentId}`);
   };
   
   return (
     <div className="relative min-h-screen pb-32 bg-black">
       
-      {/* --- HERO SECTION --- */}
+      {/* --- HERO SECTION (Unchanged) --- */}
       <div className="relative w-full aspect-[21/9] min-h-[400px] overflow-hidden group">
-        {/* Absolute Profile */}
         <Link to="/profile" className="flex gap-2 items-center absolute z-50 top-8 right-8 tracking-widest font-light font-heading hover:text-green-200">
           <User2 />
           <span>CHECK PROFILE</span>
         </Link>
-        {/* Background Image with slight zoom effect */}
         <div className="absolute inset-0">
           <img 
             src={currentConfig.image} 
             alt={currentConfig.title}
             className="w-full h-full object-cover opacity-80 transition-transform duration-1000 transform group-hover:scale-105" 
           />
-          {/* Gradients for readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent" />
         </div>
 
-        {/* Hero Content */}
         <div className="absolute inset-0 flex items-center">
           <div className="mx-auto max-w-5xl w-full px-6 pt-20 md:pt-0">
              <div className="max-w-2xl space-y-6 animate-fadeInUp">
@@ -222,9 +188,6 @@ export default function StudentHome() {
                {filteredChapters.length} Chapters • {filteredChapters.reduce((acc, curr) => acc + curr.topics.length, 0)} Topics
              </p>
            </div>
-           <div className="hidden md:block text-slate-600 text-xs uppercase tracking-widest font-mono">
-             Current Progress
-           </div>
         </div>
  
         {/* --- Timeline Section --- */}
@@ -242,32 +205,27 @@ export default function StudentHome() {
           ) : (
             <div className="relative space-y-8">
               
-              {/* Vertical Timeline Line (Left Aligned) */}
+              {/* Vertical Timeline Line */}
               <div className="absolute left-[19px] top-4 bottom-8 w-0.5 bg-gradient-to-b from-gray-700 via-gray-800 to-transparent" />
 
               {filteredChapters.map((chapter, index) => {
-                const stats = aggregates[chapter.documentId];
-                const isCompleted = stats?.averagePercent === 100;
                 
                 return (
                   <div key={chapter.id} className="relative pl-16 group">
                     
-                    {/* The Number Node */}
+                    {/* The Number Node (Always gray since no progress) */}
                     <div 
                       className={`
                         absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full 
                         flex items-center justify-center z-10 border-4 border-black
                         transition-all duration-300 group-hover:scale-110 shadow-lg
-                        ${isCompleted 
-                          ? 'bg-green-500 text-black shadow-green-500/20' 
-                          : 'bg-gray-800 text-slate-400 border-gray-700'
-                        }
+                        bg-gray-800 text-slate-400 border-gray-700
                       `}
                     >
-                      {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <span className="font-bold text-sm">{index + 1}</span>}
+                      <span className="font-bold text-sm">{index + 1}</span>
                     </div>
 
-                    {/* The Card (Horizontal Layout) */}
+                    {/* The Card */}
                     <div 
                       onClick={() => openChapter(chapter)}
                       className="
@@ -277,11 +235,12 @@ export default function StudentHome() {
                         transition-all duration-300 cursor-pointer group-hover:-translate-y-1
                       "
                     >
-                      {/* Thumbnail Image (Small) */}
+                      {/* Thumbnail Image */}
                       <div className="w-full md:w-48 shrink-0 aspect-video md:aspect-[3/1] rounded-lg overflow-hidden relative bg-black">
-                        {chapter.thumbnail?.url ? (
+                        {chapter.thumbnail ? (
                           <img 
-                            src={chapter.thumbnail.url} 
+                            // Assuming images are in public/assets or similar. Adjust path as needed.
+                            src={`${cmsUrl}images/chapter-thumbnails/${chapter.thumbnail}`} 
                             alt={chapter.name} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-80 group-hover:opacity-100"
                           />
@@ -290,7 +249,7 @@ export default function StudentHome() {
                             <BookOpen className="w-8 h-8 opacity-50" />
                           </div>
                         )}
-                        {/* Topic Count Badge Overlay */}
+                        
                          <div className="absolute bottom-1 right-1 bg-black/80 text-[10px] text-white px-1.5 py-0.5 rounded font-mono border border-white/10">
                            {chapter.topics.length} TOPICS
                          </div>
@@ -302,7 +261,6 @@ export default function StudentHome() {
                           <h3 className="text-xl font-bold text-slate-100 truncate pr-4 group-hover:text-white transition-colors">
                             {chapter.name}
                           </h3>
-                          {/* Arrow appears on hover */}
                           <ArrowRight className="w-5 h-5 text-slate-500 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
                         </div>
                         
@@ -310,39 +268,18 @@ export default function StudentHome() {
                           {chapter.description || "Dive into this chapter to master the fundamental concepts."}
                         </p>
 
-                        {/* Stats Row */}
+                        {/* Footer Row (No progress bars) */}
                         <div className="mt-5 flex items-center justify-between border-t border-white/5 pt-3">
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5">
                               <BookOpen className="w-3.5 h-3.5 text-slate-500" />
-                              <span className="text-xs text-slate-400 font-medium">Readings</span>
+                              <span className="text-xs text-slate-400 font-medium">Readings Available</span>
                             </div>
-                            {stats && (
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full ${stats.completedTopics > 0 ? 'bg-green-500' : 'bg-slate-600'}`} />
-                                <span className="text-xs text-slate-400">
-                                  {stats.completedTopics}/{stats.totalTopics} Done
-                                </span>
-                              </div>
-                            )}
                           </div>
-
-                          {/* Percent Pill */}
-                          {stats ? (
-                            <div className="flex items-center gap-2">
-                               <div className="w-24 h-1.5 bg-gray-800 rounded-full overflow-hidden hidden sm:block">
-                                  <div 
-                                    className={`h-full rounded-full ${stats.averagePercent === 100 ? 'bg-green-500' : 'bg-blue-500'}`} 
-                                    style={{ width: `${stats.averagePercent}%` }}
-                                  />
-                               </div>
-                               <span className={`text-xs font-bold ${stats.averagePercent === 100 ? 'text-green-400' : 'text-blue-400'}`}>
-                                 {stats.averagePercent}%
-                               </span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-600 font-mono">NOT STARTED</span>
-                          )}
+                          
+                          <span className="text-xs text-slate-600 font-mono group-hover:text-blue-400 transition-colors">
+                            START CHAPTER
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -354,7 +291,7 @@ export default function StudentHome() {
         </div>
       </main>
 
-      {/* --- Bottom Navigation (Dock) --- */}
+      {/* --- Bottom Navigation (Unchanged) --- */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-md">
         <div className="backdrop-blur-xl bg-black/80 border border-white/10 rounded-2xl shadow-[0_0_20px_rgba(0,0,0,0.5)] p-2 flex items-center justify-between">
           {UNITS.map((unit) => {

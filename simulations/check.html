@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mastery: Energy in Oscillations</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        /* --- THEME & UTILITIES --- */
+        :root {
+            --bg: #18181b; /* Zinc 900 */
+            --surface: #27272a; /* Zinc 800 */
+            --accent: #4ade80; /* Green 400 */
+            --accent-glow: rgba(74, 222, 128, 0.4);
+            --danger: #ef4444;
+        }
+        body { background: #000; color: #e4e4e7; font-family: 'Inter', sans-serif; overflow: hidden; }
+
+        /* Custom Scrollbar & Inputs */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 3px; }
+        
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: var(--accent); cursor: pointer; margin-top: -6px;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: var(--surface); border-radius: 2px;
+        }
+
+        /* Animations */
+        .fade-enter { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .pop-in { animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+        /* Component Styles */
+        .glow-text { text-shadow: 0 0 20px var(--accent-glow); }
+        .glass-panel { background: rgba(39, 39, 42, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        
+        /* Flip Card */
+        .flip-card { perspective: 1000px; cursor: pointer; }
+        .flip-card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; }
+        .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+        .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 0.75rem; border: 1px solid #3f3f46; padding: 1rem; }
+        .flip-front { background: #27272a; }
+        .flip-back { background: #18181b; transform: rotateY(180deg); border-color: var(--accent); color: var(--accent); }
+
+        /* Slot Logic */
+        .draggable-item.selected { border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 select-none">
+
+    <!-- MAIN FRAME (16:9) -->
+    <div class="relative w-full max-w-[1200px] aspect-video bg-zinc-900 rounded-3xl shadow-2xl overflow-hidden border border-zinc-800 flex flex-col">
+        
+        <!-- HEADER -->
+        <div class="absolute top-0 w-full p-6 z-30 flex justify-between items-center pointer-events-none bg-gradient-to-b from-zinc-900/90 to-transparent">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold bg-green-900/30 text-green-400 px-2 py-1 rounded border border-green-900/50 uppercase tracking-widest">Physics 101</span>
+                    <span class="text-zinc-500 text-xs uppercase tracking-widest" id="slide-type-label">Intro</span>
+                </div>
+                <h1 class="text-2xl font-bold text-white mt-1 tracking-tight">Energy in Simple Harmonic Motion</h1>
+            </div>
+            <div class="flex flex-col items-end gap-1">
+                <span class="text-xs text-zinc-500" id="progress-text">1 / 20</span>
+                <div class="w-32 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-green-500 transition-all duration-500" style="width: 5%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DYNAMIC CONTENT STAGE -->
+        <div id="stage" class="flex-grow w-full h-full relative z-10 flex flex-col items-center justify-center overflow-hidden">
+            <!-- Content injects here -->
+        </div>
+
+        <!-- FOOTER NAV -->
+        <div class="absolute bottom-0 w-full p-6 z-30 flex justify-between items-center pointer-events-none bg-gradient-to-t from-zinc-900/90 to-transparent">
+            <button id="btn-prev" class="pointer-events-auto flex items-center gap-2 text-zinc-500 hover:text-white transition-colors px-4 py-2 disabled:opacity-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                <span>Back</span>
+            </button>
+            
+            <button id="btn-next" class="pointer-events-auto bg-green-500 hover:bg-green-400 text-black font-bold px-8 py-3 rounded-xl shadow-[0_0_20px_rgba(74,222,128,0.3)] transition-all hover:scale-105 active:scale-95 flex items-center gap-2">
+                <span>Next</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- CANVAS CACHE (Hidden) -->
+    <div class="hidden">
+        <canvas id="offscreen-sim"></canvas>
+    </div>
+
+    <script>
+        /* =========================================
+           CONTENT DATA (The Curriculum)
+           ========================================= */
+        const slides = [
+            {
+                type: 'intro',
+                title: "Energy is a Shapeshifter",
+                text: "Welcome. Today we're going to break down how energy behaves in oscillating systems (like springs and pendulums) using the Feynman technique: <b>Simplifying complex ideas.</b>",
+                icon: "⚡"
+            },
+            {
+                type: 'analogy',
+                title: "The Skateboard Analogy",
+                concept: "Conservation of Energy",
+                text: "Imagine a skater in a half-pipe.",
+                points: [
+                    { icon: "🏔️", text: "At the <b>Top</b>: Stopped. High potential. (All Potential Energy)" },
+                    { icon: "🏎️", text: "At the <b>Bottom</b>: Fastest. Zero height. (All Kinetic Energy)" },
+                    { icon: "⚖️", text: "In <b>Between</b>: A mix of both." }
+                ]
+            },
+            {
+                type: 'flip-cards',
+                title: "Vocabulary Check",
+                text: "Tap cards to flip. Understanding these is crucial.",
+                cards: [
+                    { front: "Kinetic Energy (K)", back: "Energy of MOTION.\nDepends on speed (v)." },
+                    { front: "Potential Energy (U)", back: "Stored Energy.\nDepends on position (x)." },
+                    { front: "Total Energy (E)", back: "The sum (K + U).\nAlways constant!" }
+                ]
+            },
+            {
+                type: 'sim-core',
+                title: "The Living System",
+                text: "Observe the spring. When speed (green bar) is max, stretch (blue bar) is zero.",
+                param: { k: 2, m: 2 }
+            },
+            {
+                type: 'interactive-graph',
+                title: "Graphing the Motion",
+                text: "Drag the slider to move time. Watch how the red dot (Total Energy) stays flat while the curves dance.",
+                labels: ['0', 'π/2', 'π', '3π/2', '2π']
+            },
+            {
+                type: 'mcq',
+                question: "At the maximum displacement (amplitude), what is the velocity of the mass?",
+                options: ["Maximum Velocity", "Zero", "Half of Max", "Negative Max"],
+                correct: 1,
+                explanation: "Think of a swing at the highest point. For a split second, it STOPS before coming back."
+            },
+            {
+                type: 'true-false',
+                statement: "If we ignore friction, the Total Mechanical Energy of the system changes over time.",
+                isTrue: false,
+                explanation: "False! Total energy is CONSERVED. It just swaps between Kinetic and Potential."
+            },
+            {
+                type: 'comparison',
+                title: "Extremes vs. Mean",
+                leftTitle: "At Extremes (Max Stretch)",
+                rightTitle: "At Equilibrium (Middle)",
+                leftPoints: ["Velocity = 0", "Displacement = A", "100% Potential Energy"],
+                rightPoints: ["Velocity = Max", "Displacement = 0", "100% Kinetic Energy"]
+            },
+            {
+                type: 'fun-fact',
+                title: "Did You Know?",
+                fact: "Quantum Oscillators",
+                text: "Even at absolute zero temperature, atoms in a crystal grid can't stop vibrating completely. They have 'Zero Point Energy'. You can never truly have zero energy in a quantum oscillator!",
+                emoji: "❄️"
+            },
+            {
+                type: 'math-breakdown',
+                title: "The Equation (Don't Panic)",
+                text: "It's just a sum. E is the wallet, K and U are the pockets.",
+                parts: [
+                    { term: "E", desc: "Total Energy (Constant)" },
+                    { term: "½mv²", desc: "Kinetic (Motion)" },
+                    { term: "½kx²", desc: "Potential (Spring)" }
+                ]
+            },
+            {
+                type: 'sorting',
+                title: "Sort the Scenario",
+                text: "Tap an item, then tap the box it belongs to.",
+                buckets: ["Kinetic Dominant", "Potential Dominant"],
+                items: [
+                    { text: "Speeding bullet", bucket: 0 },
+                    { text: "Stretched Bowstring", bucket: 1 },
+                    { text: "Car at red light", bucket: 1 }, /* loosely PE if sitting on hill, but let's say compressed spring in shock */
+                    { text: "Falling apple", bucket: 0 }
+                ]
+            },
+            {
+                type: 'slider-impact',
+                title: "Impact of Stiffness (k)",
+                text: "Increase the spring stiffness (k). What happens to the energy exchange rate?",
+                min: 1, max: 20, initial: 5,
+                unit: "N/m",
+                variable: "k"
+            },
+            {
+                type: 'step-flow',
+                title: "The Cycle of Energy",
+                steps: ["Mass moves to center", "Speed Increases", "Passes Equilibrium (Max Speed)", "Slows down", "Stops at other side"]
+            },
+            {
+                type: 'point-ponder',
+                question: "Where does the energy go if there IS friction?",
+                text: "In the real world, the spring eventually stops. The mechanical energy turns into Heat (Thermal Energy) inside the spring and air molecules.",
+                icon: "🤔"
+            },
+            {
+                type: 'slice',
+                title: "Energy Pie",
+                text: "See how the pie chart slices change size but the whole pie remains the same size.",
+                // Rendered dynamically with chart.js
+            },
+            {
+                type: 'fill-blanks',
+                sentence: "When the spring is compressed, the work done is stored as [?] energy.",
+                options: ["Kinetic", "Potential", "Thermal"],
+                correct: "Potential"
+            },
+            {
+                type: 'concept-map',
+                title: " The Big Picture",
+                nodes: [
+                    { id: 1, label: "Total Energy", x: 50, y: 20 },
+                    { id: 2, label: "Kinetic", x: 30, y: 60 },
+                    { id: 3, label: "Potential", x: 70, y: 60 },
+                    { id: 4, label: "Velocity", x: 30, y: 90 },
+                    { id: 5, label: "Position", x: 70, y: 90 }
+                ],
+                connections: [[1,2], [1,3], [2,4], [3,5]]
+            },
+            {
+                type: 'challenge',
+                title: "Final Boss",
+                question: "If Amplitude (A) is doubled, what happens to the Total Energy?",
+                options: ["Doubles (2x)", "Quadruples (4x)", "Stays same", "Halves"],
+                correct: 1,
+                hint: "Formula is E = ½kA². Note the square!"
+            },
+            {
+                type: 'summary',
+                title: "Mastery Checklist",
+                items: [
+                    "Energy transforms between K and U",
+                    "Total Energy is constant (in ideal systems)",
+                    "Max Speed occurs at Equilibrium",
+                    "Max Force occurs at Extremes"
+                ]
+            },
+            {
+                type: 'outro',
+                title: "Lesson Complete",
+                text: "You now see the invisible dance of energy. Excellent work.",
+                stars: 5
+            }
+        ];
+
+        /* =========================================
+           ENGINE CORE
+           ========================================= */
+        let state = {
+            index: 0,
+            animId: null, // Canvas animation loop
+            sim: { t:0, k:2, m:2, amp: 100 },
+            sortingSelection: null,
+            score: 0
+        };
+
+        const dom = {
+            stage: document.getElementById('stage'),
+            prev: document.getElementById('btn-prev'),
+            next: document.getElementById('btn-next'),
+            progress: document.getElementById('progress-bar'),
+            progressText: document.getElementById('progress-text'),
+            typeLabel: document.getElementById('slide-type-label')
+        };
+
+        function init() {
+            dom.next.addEventListener('click', () => changeSlide(1));
+            dom.prev.addEventListener('click', () => changeSlide(-1));
+            renderSlide();
+        }
+
+        function changeSlide(dir) {
+            const newIndex = state.index + dir;
+            if (newIndex >= 0 && newIndex < slides.length) {
+                state.index = newIndex;
+                renderSlide();
+            }
+        }
+
+        function renderSlide() {
+            // 1. Cleanup
+            dom.stage.innerHTML = '';
+            if (state.animId) cancelAnimationFrame(state.animId);
+            
+            // 2. Data Access
+            const data = slides[state.index];
+            
+            // 3. Update UI
+            dom.progress.style.width = `${((state.index + 1) / slides.length) * 100}%`;
+            dom.progressText.innerText = `${state.index + 1} / ${slides.length}`;
+            dom.typeLabel.innerText = data.type.replace('-', ' ');
+            dom.prev.disabled = state.index === 0;
+            
+            if(state.index === slides.length - 1) dom.next.innerHTML = "<span>Finish</span>";
+            else dom.next.innerHTML = "<span>Next</span><svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'><path d='M5 12h14M12 5l7 7-7 7'/></svg>";
+
+            // 4. Router
+            const container = document.createElement('div');
+            container.className = "w-full h-full flex flex-col items-center justify-center p-8 fade-enter relative";
+            
+            try {
+                switch(data.type) {
+                    case 'intro': renderIntro(container, data); break;
+                    case 'analogy': renderAnalogy(container, data); break;
+                    case 'flip-cards': renderFlipCards(container, data); break;
+                    case 'sim-core': renderSimCore(container, data); break;
+                    case 'interactive-graph': renderGraph(container, data); break;
+                    case 'mcq': renderMCQ(container, data); break;
+                    case 'true-false': renderTrueFalse(container, data); break;
+                    case 'comparison': renderComparison(container, data); break;
+                    case 'fun-fact': renderFunFact(container, data); break;
+                    case 'math-breakdown': renderMath(container, data); break;
+                    case 'sorting': renderSorting(container, data); break;
+                    case 'slider-impact': renderSliderImpact(container, data); break;
+                    case 'step-flow': renderStepFlow(container, data); break;
+                    case 'point-ponder': renderPointPonder(container, data); break;
+                    case 'slice': renderSlice(container, data); break;
+                    case 'fill-blanks': renderFillBlanks(container, data); break;
+                    case 'concept-map': renderConceptMap(container, data); break;
+                    case 'challenge': renderMCQ(container, data); break; // reuse mcq
+                    case 'summary': renderSummary(container, data); break;
+                    case 'outro': renderOutro(container, data); break;
+                    default: container.innerHTML = "<h2>Unknown Slide Type</h2>";
+                }
+            } catch(e) {
+                console.error(e);
+                container.innerHTML = "<h2>Render Error</h2>";
+            }
+            
+            dom.stage.appendChild(container);
+        }
+
+        /* =========================================
+           RENDERERS
+           ========================================= */
+
+        function renderIntro(el, data) {
+            el.innerHTML = `
+                <div class="text-9xl mb-6 animate-bounce">${data.icon}</div>
+                <h1 class="text-5xl font-bold text-white mb-4 text-center glow-text">${data.title}</h1>
+                <p class="text-xl text-zinc-400 max-w-2xl text-center leading-relaxed">${data.text}</p>
+            `;
+        }
+
+        function renderAnalogy(el, data) {
+            const items = data.points.map(p => `
+                <div class="glass-panel p-4 rounded-xl flex items-center gap-4 w-full">
+                    <span class="text-3xl">${p.icon}</span>
+                    <span class="text-zinc-300 text-sm">${p.text}</span>
+                </div>
+            `).join('');
+            el.innerHTML = `
+                <h2 class="text-3xl font-bold text-green-400 mb-2 uppercase tracking-wide">${data.concept}</h2>
+                <h3 class="text-xl text-white mb-8">${data.title}</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl">${items}</div>
+                <p class="mt-8 text-zinc-500 italic">"${data.text}"</p>
+            `;
+        }
+
+        function renderFlipCards(el, data) {
+            el.innerHTML = `<h2 class="text-2xl font-bold text-white mb-8">${data.title}</h2><div class="flex gap-6 justify-center w-full"></div>`;
+            const container = el.querySelector('div');
+            
+            data.cards.forEach(card => {
+                const wrap = document.createElement('div');
+                wrap.className = "flip-card w-64 h-80";
+                wrap.innerHTML = `
+                    <div class="flip-card-inner">
+                        <div class="flip-front"><h3 class="text-xl font-bold text-white">${card.front}</h3></div>
+                        <div class="flip-back flex-col"><h3 class="font-bold mb-2">${card.front}</h3><p class="text-sm text-zinc-300 whitespace-pre-line">${card.back}</p></div>
+                    </div>
+                `;
+                wrap.onclick = () => wrap.classList.toggle('flipped');
+                container.appendChild(wrap);
+            });
+        }
+
+        function renderMCQ(el, data) {
+            el.innerHTML = `
+                <div class="glass-panel p-8 rounded-2xl max-w-2xl w-full">
+                    <h2 class="text-2xl font-bold text-white mb-6">${data.question}</h2>
+                    <div class="grid gap-3" id="opts"></div>
+                    <div id="fb" class="mt-4 hidden p-3 rounded text-sm"></div>
+                </div>
+            `;
+            const opts = el.querySelector('#opts');
+            const fb = el.querySelector('#fb');
+            
+            data.options.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-4 rounded bg-zinc-900 border border-zinc-700 hover:border-green-500 transition-colors text-zinc-300";
+                btn.innerText = opt;
+                btn.onclick = () => {
+                    const btns = opts.querySelectorAll('button');
+                    btns.forEach(b => b.disabled = true);
+                    if(i === data.correct) {
+                        btn.classList.add('bg-green-600', 'text-white', 'border-green-500');
+                        fb.className = "mt-4 p-3 rounded text-sm bg-green-900/30 text-green-400 border border-green-900 pop-in";
+                        fb.innerHTML = `<b>Correct!</b> ${data.explanation || ''} ${data.hint || ''}`;
+                    } else {
+                        btn.classList.add('bg-red-900/50', 'text-red-200', 'border-red-900');
+                        btns[data.correct].classList.add('bg-green-900/50', 'text-green-200', 'border-green-900'); // Show correct
+                        fb.className = "mt-4 p-3 rounded text-sm bg-red-900/20 text-red-400 border border-red-900 pop-in";
+                        fb.innerHTML = `<b>Oops.</b> The answer was ${data.options[data.correct]}.<br>${data.hint || ''}`;
+                    }
+                };
+                opts.appendChild(btn);
+            });
+        }
+
+        function renderTrueFalse(el, data) {
+            // Reusing MCQ logic logic essentially
+            const modData = {
+                question: data.statement,
+                options: ["True", "False"],
+                correct: data.isTrue ? 0 : 1,
+                explanation: data.explanation
+            };
+            renderMCQ(el, modData);
+        }
+
+        function renderComparison(el, data) {
+            const listL = data.leftPoints.map(p => `<li class="text-zinc-400 text-sm">• ${p}</li>`).join('');
+            const listR = data.rightPoints.map(p => `<li class="text-zinc-400 text-sm">• ${p}</li>`).join('');
+            
+            el.innerHTML = `
+                <h2 class="text-2xl font-bold text-white mb-8">${data.title}</h2>
+                <div class="flex w-full max-w-4xl gap-1">
+                    <div class="flex-1 bg-zinc-900 border border-zinc-700 p-6 rounded-l-xl">
+                        <h3 class="text-blue-400 font-bold mb-4 uppercase text-sm tracking-widest">${data.leftTitle}</h3>
+                        <ul class="space-y-2">${listL}</ul>
+                    </div>
+                    <div class="w-[2px] bg-zinc-800"></div>
+                    <div class="flex-1 bg-zinc-900 border border-zinc-700 p-6 rounded-r-xl">
+                        <h3 class="text-green-400 font-bold mb-4 uppercase text-sm tracking-widest">${data.rightTitle}</h3>
+                        <ul class="space-y-2">${listR}</ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFunFact(el, data) {
+            el.innerHTML = `
+                <div class="relative glass-panel p-10 rounded-3xl max-w-xl text-center border-green-500/30 shadow-[0_0_30px_rgba(74,222,128,0.1)]">
+                    <div class="absolute -top-6 left-1/2 transform -translate-x-1/2 text-5xl bg-zinc-900 rounded-full p-2 border border-zinc-700">${data.emoji}</div>
+                    <h2 class="mt-6 text-green-400 font-bold tracking-widest uppercase text-xs mb-2">${data.title}</h2>
+                    <h3 class="text-3xl font-bold text-white mb-4">${data.fact}</h3>
+                    <p class="text-zinc-400 leading-relaxed">${data.text}</p>
+                </div>
+            `;
+        }
+
+        function renderMath(el, data) {
+            const rows = data.parts.map(p => `
+                <div class="flex justify-between items-center py-3 border-b border-zinc-800 last:border-0">
+                    <span class="font-mono text-xl text-green-400">${p.term}</span>
+                    <span class="text-zinc-500 text-sm">${p.desc}</span>
+                </div>
+            `).join('');
+            
+            el.innerHTML = `
+                <div class="flex gap-8 items-center">
+                    <div class="bg-zinc-950 p-8 rounded-xl border border-zinc-800">
+                        <div class="text-4xl font-mono text-white">E = <span class="text-blue-400">K</span> + <span class="text-green-400">U</span></div>
+                    </div>
+                    <div class="text-zinc-600 text-6xl">&rarr;</div>
+                    <div class="glass-panel p-6 rounded-xl w-80">
+                        ${rows}
+                    </div>
+                </div>
+                <p class="mt-8 text-zinc-400 text-center max-w-xl">${data.text}</p>
+            `;
+        }
+
+        function renderSorting(el, data) {
+            el.innerHTML = `
+                <h2 class="text-2xl font-bold text-white mb-2">${data.title}</h2>
+                <p class="text-zinc-500 text-sm mb-6">${data.text}</p>
+                
+                <div class="flex gap-8 w-full max-w-4xl h-64">
+                    <div class="w-1/3 grid grid-cols-1 gap-2 overflow-y-auto pr-2" id="item-pool">
+                        <!-- Items -->
+                    </div>
+                    <div class="flex-1 flex gap-4">
+                        ${data.buckets.map((b, i) => `
+                            <div class="bucket flex-1 bg-zinc-900/50 border-2 border-dashed border-zinc-700 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-800/50 transition-colors" data-idx="${i}">
+                                <span class="text-zinc-500 font-bold uppercase text-xs pointer-events-none">${b}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div id="sort-fb" class="mt-4 h-6 text-green-400 text-sm font-bold"></div>
+            `;
+
+            const pool = el.querySelector('#item-pool');
+            const buckets = el.querySelectorAll('.bucket');
+            const feedback = el.querySelector('#sort-fb');
+            
+            let selectedItem = null;
+            let selectedItemIdx = -1;
+
+            // Create Items
+            data.items.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = "draggable-item p-3 bg-zinc-800 border border-zinc-600 rounded cursor-pointer text-sm text-zinc-200 hover:bg-zinc-700 transition-all";
+                div.innerText = item.text;
+                div.onclick = () => {
+                    // Deselect others
+                    pool.querySelectorAll('div').forEach(d => d.classList.remove('selected'));
+                    div.classList.add('selected');
+                    selectedItem = item;
+                    selectedItemIdx = idx;
+                    div.style.display = 'block'; // Ensure visible
+                };
+                div.id = `sort-item-${idx}`;
+                pool.appendChild(div);
+            });
+
+            // Bucket Logic
+            buckets.forEach(b => {
+                b.onclick = () => {
+                    if(!selectedItem) return;
+                    
+                    const bucketIdx = parseInt(b.dataset.idx);
+                    if(selectedItem.bucket === bucketIdx) {
+                        // Correct
+                        const itemDiv = document.getElementById(`sort-item-${selectedItemIdx}`);
+                        itemDiv.style.display = 'none'; // remove from pool
+                        b.innerHTML += `<div class="mt-2 p-2 bg-green-500/20 text-green-400 text-xs rounded border border-green-500/50 w-3/4 text-center pop-in">${selectedItem.text}</div>`;
+                        feedback.innerText = "Correct!";
+                        selectedItem = null;
+                    } else {
+                        feedback.innerText = "Try again!";
+                        setTimeout(()=> feedback.innerText = "", 1000);
+                    }
+                };
+            });
+        }
+
+        function renderStepFlow(el, data) {
+            const steps = data.steps.map((s, i) => `
+                <div class="flex flex-col items-center relative z-10">
+                    <div class="w-12 h-12 rounded-full bg-zinc-800 border-2 border-green-500 flex items-center justify-center text-green-500 font-bold text-lg mb-3 shadow-[0_0_15px_rgba(74,222,128,0.2)]">
+                        ${i+1}
+                    </div>
+                    <div class="text-center text-sm text-zinc-300 w-32 glass-panel p-2 rounded">${s}</div>
+                </div>
+            `).join('<div class="h-1 w-16 bg-zinc-700 mt-6 -mx-4 z-0"></div>'); // Connectors
+            
+            el.innerHTML = `
+                <h2 class="text-2xl font-bold text-white mb-12">${data.title}</h2>
+                <div class="flex items-start justify-center overflow-x-auto w-full pb-4">
+                    ${steps}
+                </div>
+            `;
+        }
+
+        function renderPointPonder(el, data) {
+            el.innerHTML = `
+                <div class="max-w-2xl text-center">
+                    <div class="text-6xl mb-6 animate-pulse">${data.icon}</div>
+                    <h2 class="text-3xl font-bold text-white mb-6 font-serif italic">"${data.question}"</h2>
+                    <div class="h-px w-24 bg-green-500 mx-auto mb-6"></div>
+                    <p class="text-lg text-zinc-400">${data.text}</p>
+                </div>
+            `;
+        }
+
+        function renderFillBlanks(el, data) {
+            const parts = data.sentence.split('[?]');
+            el.innerHTML = `
+                <div class="bg-zinc-900 border border-zinc-700 p-8 rounded-xl max-w-2xl w-full text-center">
+                    <div class="text-2xl text-white mb-8 leading-relaxed">
+                        ${parts[0]} 
+                        <span id="target-slot" class="inline-block w-32 border-b-2 border-zinc-500 text-green-400 font-bold px-2 py-1 align-bottom cursor-pointer hover:bg-zinc-800 transition-colors">???</span> 
+                        ${parts[1]}
+                    </div>
+                    <div class="flex gap-4 justify-center">
+                        ${data.options.map(opt => `<button class="opt-btn px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-600">${opt}</button>`).join('')}
+                    </div>
+                    <p id="fb-res" class="mt-6 text-sm h-6"></p>
+                </div>
+            `;
+            
+            const slot = el.querySelector('#target-slot');
+            const res = el.querySelector('#fb-res');
+            
+            el.querySelectorAll('.opt-btn').forEach(btn => {
+                btn.onclick = () => {
+                    slot.innerText = btn.innerText;
+                    if(btn.innerText === data.correct) {
+                        slot.classList.add('text-green-400', 'border-green-500');
+                        slot.classList.remove('text-red-400', 'border-red-500');
+                        res.innerHTML = "<span class='text-green-500'>Correct!</span>";
+                    } else {
+                        slot.classList.add('text-red-400', 'border-red-500');
+                        res.innerHTML = "<span class='text-red-500'>Not quite.</span>";
+                    }
+                };
+            });
+        }
+
+        function renderConceptMap(el, data) {
+            // Simple absolute positioning map
+            el.innerHTML = `<h2 class="absolute top-4 left-6 text-xl font-bold text-white z-20">${data.title}</h2><div class="relative w-full h-full bg-zinc-950/50" id="map-area"></div>`;
+            const map = el.querySelector('#map-area');
+            
+            // Draw connections (SVG lines)
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("class", "absolute top-0 left-0 w-full h-full pointer-events-none z-0");
+            
+            data.connections.forEach(conn => {
+                const n1 = data.nodes.find(n => n.id === conn[0]);
+                const n2 = data.nodes.find(n => n.id === conn[1]);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                // Convert % to coordinates roughly (assuming container size)
+                // This is a simplified visual representation
+                line.setAttribute("x1", n1.x + "%");
+                line.setAttribute("y1", n1.y + "%");
+                line.setAttribute("x2", n2.x + "%");
+                line.setAttribute("y2", n2.y + "%");
+                line.setAttribute("stroke", "#52525b");
+                line.setAttribute("stroke-width", "2");
+                svg.appendChild(line);
+            });
+            map.appendChild(svg);
+
+            // Draw Nodes
+            data.nodes.forEach(node => {
+                const div = document.createElement('div');
+                div.className = "absolute transform -translate-x-1/2 -translate-y-1/2 bg-zinc-800 border border-green-500/30 text-zinc-200 px-4 py-2 rounded-full shadow-lg text-sm font-bold z-10 hover:scale-110 transition-transform cursor-default";
+                div.style.left = node.x + "%";
+                div.style.top = node.y + "%";
+                div.innerText = node.label;
+                map.appendChild(div);
+            });
+        }
+
+        function renderSummary(el, data) {
+            el.innerHTML = `
+                <div class="glass-panel p-8 rounded-2xl max-w-lg w-full">
+                    <h2 class="text-2xl font-bold text-white mb-6 border-b border-zinc-700 pb-4">${data.title}</h2>
+                    <ul class="space-y-4">
+                        ${data.items.map(i => `<li class="flex items-center gap-3 text-zinc-300"><span class="text-green-500">✓</span> ${i}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        function renderOutro(el, data) {
+            el.innerHTML = `
+                <div class="text-center">
+                    <div class="text-6xl mb-4">🏆</div>
+                    <h1 class="text-5xl font-bold text-green-400 mb-6 glow-text">${data.title}</h1>
+                    <p class="text-xl text-zinc-300 mb-8">${data.text}</p>
+                    <button onclick="location.reload()" class="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors">Restart Lesson</button>
+                </div>
+            `;
+        }
+
+        /* =========================================
+           CANVAS SIMULATIONS (The Heavy Lifting)
+           ========================================= */
+
+        // Helper: Generic Setup for Sim Slides
+        function setupCanvas(el) {
+            el.innerHTML = `<canvas class="w-full h-full block bg-zinc-900"></canvas>`;
+            const canvas = el.querySelector('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Resize logic
+            const resize = () => {
+                const rect = el.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+            };
+            resize();
+            // In a real app, attach resize listener, here simpler
+            
+            return { canvas, ctx, w: canvas.width, h: canvas.height };
+        }
+
+        // 1. Core Mass-Spring Sim
+        function renderSimCore(el, data) {
+            // Add UI Controls overlay
+            el.className = "relative w-full h-full";
+            el.innerHTML = `
+                <canvas class="block w-full h-full"></canvas>
+                <div class="absolute top-4 left-4 p-4 glass-panel rounded-xl max-w-sm pointer-events-none">
+                    <h3 class="font-bold text-white text-lg">${data.title}</h3>
+                    <p class="text-xs text-zinc-400 mt-1">${data.text}</p>
+                </div>
+                <div class="absolute bottom-6 right-6 flex flex-col gap-2 pointer-events-none">
+                    <div class="flex items-center gap-2 bg-zinc-950/80 p-2 rounded">
+                        <span class="text-xs font-bold text-green-400 w-8">KE</span>
+                        <div class="w-32 h-2 bg-zinc-800 rounded overflow-hidden"><div id="bar-ke" class="h-full bg-green-500 w-0"></div></div>
+                    </div>
+                    <div class="flex items-center gap-2 bg-zinc-950/80 p-2 rounded">
+                        <span class="text-xs font-bold text-blue-400 w-8">PE</span>
+                        <div class="w-32 h-2 bg-zinc-800 rounded overflow-hidden"><div id="bar-pe" class="h-full bg-blue-500 w-0"></div></div>
+                    </div>
+                </div>
+            `;
+            
+            const canvas = el.querySelector('canvas');
+            const ctx = canvas.getContext('2d');
+            const { k, m } = data.param;
+            
+            // Physics State
+            let t = 0;
+            const amp = 150;
+            const omega = Math.sqrt(k/m);
+            const barKE = el.querySelector('#bar-ke');
+            const barPE = el.querySelector('#bar-pe');
+
+            function loop() {
+                const W = canvas.width = el.clientWidth;
+                const H = canvas.height = el.clientHeight;
+                const cx = W/2, cy = H/2;
+                
+                t += 0.05;
+                const x = amp * Math.cos(omega * t); // Displacement
+                const v = -amp * omega * Math.sin(omega * t); // Velocity
+                
+                // Normalized Energy for Bars
+                const maxV = amp * omega;
+                const ratioKE = (v*v)/(maxV*maxV);
+                const ratioPE = (x*x)/(amp*amp);
+                
+                barKE.style.width = `${ratioKE*100}%`;
+                barPE.style.width = `${ratioPE*100}%`;
+
+                // Draw
+                ctx.clearRect(0,0,W,H);
+                
+                // Spring
+                ctx.beginPath();
+                ctx.moveTo(cx - 300, cy);
+                const segs = 20;
+                const springLen = (cx + x) - (cx - 300) - 40; // Wall to block edge
+                const step = springLen / segs;
+                
+                for(let i=0; i<=segs; i++) {
+                    const sx = (cx-300) + step * i;
+                    const sy = cy + (i%2==0 ? -15 : 15) * (i==0||i==segs?0:1);
+                    ctx.lineTo(sx, sy);
+                }
+                ctx.strokeStyle = '#71717a';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Wall
+                ctx.fillStyle = '#3f3f46';
+                ctx.fillRect(cx - 310, cy - 50, 10, 100);
+
+                // Block
+                ctx.fillStyle = '#18181b';
+                ctx.strokeStyle = '#4ade80';
+                ctx.lineWidth = 2;
+                const boxS = 80;
+                ctx.fillRect(cx + x - boxS/2, cy - boxS/2, boxS, boxS);
+                ctx.strokeRect(cx + x - boxS/2, cy - boxS/2, boxS, boxS);
+
+                // Glow based on speed
+                ctx.shadowBlur = ratioKE * 30;
+                ctx.shadowColor = '#4ade80';
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                state.animId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        // 2. Interactive Graph (Slider)
+        function renderGraph(el, data) {
+            el.className = "flex flex-col items-center justify-center w-full h-full relative";
+            el.innerHTML = `
+                 <h2 class="absolute top-6 left-6 text-xl font-bold text-white">${data.title}</h2>
+                 <canvas id="graphCanvas" class="w-full max-w-3xl h-64 bg-zinc-900/50 rounded border border-zinc-800 mb-8"></canvas>
+                 <div class="w-full max-w-xl px-8">
+                    <input type="range" min="0" max="6.28" step="0.05" value="0" id="timeSlider">
+                    <div class="flex justify-between text-xs text-zinc-500 mt-2 font-mono">
+                        ${data.labels.map(l => `<span>${l}</span>`).join('')}
+                    </div>
+                 </div>
+                 <p class="text-zinc-500 text-sm mt-4">${data.text}</p>
+            `;
+
+            const cvs = el.querySelector('#graphCanvas');
+            const ctx = cvs.getContext('2d');
+            const slider = el.querySelector('#timeSlider');
+            
+            // Fixed Graph drawing
+            function drawGraph() {
+                const W = cvs.width = cvs.clientWidth;
+                const H = cvs.height = cvs.clientHeight;
+                const val = parseFloat(slider.value); // current time phase
+                
+                ctx.clearRect(0,0,W,H);
+                
+                // Draw Axes
+                ctx.strokeStyle = '#3f3f46';
+                ctx.beginPath();
+                ctx.moveTo(0, H/2); ctx.lineTo(W, H/2);
+                ctx.stroke();
+
+                // Plot Functions (static curves)
+                // KE = sin^2, PE = cos^2 roughly
+                ctx.lineWidth = 2;
+                
+                // PE Curve (Blue)
+                ctx.beginPath();
+                ctx.strokeStyle = '#60a5fa';
+                for(let i=0; i<W; i++) {
+                    const ph = (i/W) * 6.28;
+                    const y = (Math.cos(ph)**2) * (H/2 - 20); // Scale amp
+                    ctx.lineTo(i, H - y); // From bottom up? No, 0 energy is bottom
+                }
+                ctx.stroke();
+
+                // Interactive Indicator Line
+                const xPos = (val / 6.28) * W;
+                ctx.strokeStyle = '#fff';
+                ctx.setLineDash([5,5]);
+                ctx.beginPath();
+                ctx.moveTo(xPos, 0); ctx.lineTo(xPos, H);
+                ctx.stroke();
+                
+                // Indicator Dot
+                const currentPE = (Math.cos(val)**2) * (H/2 - 20);
+                ctx.fillStyle = '#60a5fa';
+                ctx.beginPath();
+                ctx.arc(xPos, H - currentPE, 6, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            slider.addEventListener('input', drawGraph);
+            // Initial call delay to let layout settle
+            setTimeout(drawGraph, 50);
+        }
+
+        // 3. Slider Impact (Canvas Sim variation)
+        function renderSliderImpact(el, data) {
+            el.className = "flex flex-col w-full h-full relative";
+            el.innerHTML = `
+                <div class="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-10">
+                    <div>
+                        <h2 class="text-xl font-bold text-white">${data.title}</h2>
+                        <p class="text-zinc-400 text-xs">${data.text}</p>
+                    </div>
+                    <div class="bg-zinc-900 border border-zinc-700 p-2 rounded flex flex-col w-48">
+                        <label class="text-xs text-green-400 font-bold mb-1 flex justify-between">
+                            <span>Stiffness (k)</span> <span id="val-disp">${data.initial}</span>
+                        </label>
+                        <input type="range" min="${data.min}" max="${data.max}" value="${data.initial}" id="impactSlider">
+                    </div>
+                </div>
+                <canvas class="w-full h-full block"></canvas>
+            `;
+            
+            const cvs = el.querySelector('canvas');
+            const ctx = cvs.getContext('2d');
+            const sl = el.querySelector('#impactSlider');
+            const valD = el.querySelector('#val-disp');
+            
+            let k = data.initial;
+            let m = 5;
+            let t = 0;
+            
+            sl.addEventListener('input', (e) => {
+                k = parseFloat(e.target.value);
+                valD.innerText = k;
+            });
+
+            function loop() {
+                const W = cvs.width = cvs.clientWidth;
+                const H = cvs.height = cvs.clientHeight;
+                const cx = W/2, cy = H/2;
+                
+                const omega = Math.sqrt(k/m);
+                t += 0.05; // fixed time step
+                
+                // High k = faster oscillation
+                const x = 100 * Math.cos(omega * t);
+                
+                ctx.clearRect(0,0,W,H);
+                
+                // Draw simple bob
+                ctx.beginPath();
+                ctx.moveTo(cx, 0);
+                ctx.lineTo(cx + x, cy); // Pendulum style for variety? No, keep spring consistent
+                // Let's do vertical spring
+                ctx.clearRect(0,0,W,H);
+                
+                // Ceiling
+                ctx.fillStyle = '#3f3f46';
+                ctx.fillRect(cx-50, 0, 100, 20);
+                
+                // Spring
+                const eqY = cy; 
+                const blockY = eqY + x;
+                
+                ctx.beginPath();
+                ctx.moveTo(cx, 20);
+                const segs = 15;
+                const len = blockY - 20;
+                const step = len/segs;
+                for(let i=0; i<=segs; i++) {
+                    ctx.lineTo(cx + (i%2==0?10:-10)*(i==0||i==segs?0:1), 20 + i*step);
+                }
+                ctx.strokeStyle = '#zinc-400';
+                ctx.stroke();
+                
+                // Mass
+                ctx.fillStyle = '#18181b';
+                ctx.strokeStyle = '#4ade80';
+                ctx.lineWidth = 2;
+                ctx.fillRect(cx-25, blockY, 50, 50);
+                ctx.strokeRect(cx-25, blockY, 50, 50);
+                
+                state.animId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        // 4. Slice (Pie Chart) - Using Chart.js for specific variety
+        function renderSlice(el, data) {
+            el.className = "flex flex-col items-center justify-center w-full h-full";
+            el.innerHTML = `
+                <h2 class="text-2xl font-bold text-white mb-4">${data.title}</h2>
+                <div class="relative w-64 h-64">
+                    <canvas id="pieChart"></canvas>
+                </div>
+                <p class="text-zinc-500 text-sm mt-8">${data.text}</p>
+            `;
+
+            const ctx = el.querySelector('#pieChart').getContext('2d');
+            
+            // Create Chart
+            const chart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Kinetic', 'Potential'],
+                    datasets: [{
+                        data: [50, 50],
+                        backgroundColor: ['#4ade80', '#60a5fa'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: { duration: 0 },
+                    plugins: { legend: { display: true, labels: { color: '#a1a1aa' } } }
+                }
+            });
+
+            // Animate Data
+            let t = 0;
+            function update() {
+                t += 0.05;
+                const k = Math.sin(t)**2 * 100;
+                const p = Math.cos(t)**2 * 100;
+                chart.data.datasets[0].data = [k, p];
+                chart.update();
+                state.animId = requestAnimationFrame(update);
+            }
+            update();
+        }
+
+        // Boot
+        init();
+
+    </script>
+</body>
+</html>

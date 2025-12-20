@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Mode: The Hidden quantity</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* --- THEME: Zinc-900 (Background) & Green-400 (Terminal/Retro) --- */
+        :root {
+            --bg: #18181b;
+            --surface: #27272a;
+            --accent: #4ade80; 
+            --accent-dim: rgba(74, 222, 128, 0.1);
+        }
+        
+        body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: var(--accent); }
+
+        /* CRT Scanline Effect */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Character Cards */
+        .char-card {
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            opacity: 0;
+            transform: translateY(20px);
+            filter: grayscale(100%) brightness(0.5);
+        }
+        .char-card.active {
+            opacity: 1;
+            transform: translateY(0);
+            filter: grayscale(0%) brightness(1);
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-dim);
+        }
+
+        /* Dialogue Box */
+        .dialogue-box {
+            background: rgba(24, 24, 27, 0.95);
+            border: 1px solid #3f3f46;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+        }
+        
+        .type-cursor::after {
+            content: '▋';
+            animation: blink 1s step-start infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Sim overlay */
+        .sim-overlay {
+            pointer-events: none; 
+            transition: opacity 1s;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 select-none">
+
+    <!-- MAIN CONTAINER (16:9 Aspect Ratio) -->
+    <div class="relative w-full max-w-[1200px] aspect-video bg-zinc-900 rounded-lg shadow-2xl overflow-hidden border border-zinc-800 flex flex-col crt">
+        
+        <!-- HEADER -->
+        <div class="absolute top-0 w-full p-4 z-20 flex justify-between items-start pointer-events-none">
+            <div class="bg-black/50 backdrop-blur px-3 py-1 border border-green-900/50 text-xs text-green-600 font-bold uppercase tracking-widest">
+                Archive: Royal Society // 1676
+            </div>
+            <button id="btn-skip" class="pointer-events-auto px-3 py-1 text-xs text-zinc-600 hover:text-green-500 border border-transparent hover:border-green-900 transition-colors uppercase">
+                Skip &rarr;
+            </button>
+        </div>
+
+        <!-- SIMULATION BACKGROUND LAYER -->
+        <div class="absolute inset-0 z-0">
+            <canvas id="simCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Contextual Overlay (Arrows, Math labels that appear) -->
+            <div id="overlay-container" class="absolute inset-0 flex items-center justify-center">
+                <div id="overlay-text" class="text-green-400 font-bold text-4xl opacity-0 transition-opacity glow-text shadow-black drop-shadow-lg"></div>
+            </div>
+        </div>
+
+        <!-- CHARACTER LAYER -->
+        <div class="absolute inset-0 z-10 pointer-events-none flex items-end justify-between px-16 pb-48">
+            
+            <!-- Left Character (Newton/Leibniz) -->
+            <div id="char-left" class="char-card w-48 h-64 bg-zinc-950 border-2 border-zinc-700 rounded-t-xl flex flex-col items-center justify-end overflow-hidden relative">
+                <div class="absolute top-4 text-6xl opacity-20">🍎</div> <!-- Newton Icon -->
+                <div class="w-full h-2/3 bg-gradient-to-t from-zinc-900 to-transparent absolute bottom-0"></div>
+                <div class="relative z-10 pb-4 text-center">
+                    <h3 class="text-xl font-bold text-zinc-300">NEWTON</h3>
+                    <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Dynamics</p>
+                </div>
+            </div>
+
+            <!-- Center Character (Leibniz - enters later) -->
+            <div id="char-center" class="char-card w-48 h-72 bg-zinc-950 border-2 border-zinc-700 rounded-t-xl flex flex-col items-center justify-end overflow-hidden relative mb-4">
+                <div class="absolute top-4 text-6xl opacity-20">∫</div> <!-- Leibniz Icon -->
+                <div class="relative z-10 pb-4 text-center">
+                    <h3 class="text-xl font-bold text-zinc-300">LEIBNIZ</h3>
+                    <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Vis Viva</p>
+                </div>
+            </div>
+
+            <!-- Right Character (Hooke) -->
+            <div id="char-right" class="char-card w-48 h-64 bg-zinc-950 border-2 border-zinc-700 rounded-t-xl flex flex-col items-center justify-end overflow-hidden relative">
+                <div class="absolute top-4 text-6xl opacity-20">🌀</div> <!-- Hooke Icon -->
+                <div class="relative z-10 pb-4 text-center">
+                    <h3 class="text-xl font-bold text-zinc-300">HOOKE</h3>
+                    <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Elasticity</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- DIALOGUE UI LAYER -->
+        <div class="absolute bottom-0 w-full z-30 p-6 flex justify-center">
+            <div class="dialogue-box w-full max-w-4xl rounded-xl p-6 min-h-[140px] relative cursor-pointer" id="dialogue-area">
+                
+                <!-- Speaker Name -->
+                <div id="speaker-name" class="absolute -top-3 left-6 bg-zinc-900 text-green-400 px-4 py-1 text-xs font-bold uppercase tracking-widest border border-green-900">
+                    System
+                </div>
+
+                <!-- Text Content -->
+                <p id="dialogue-text" class="text-lg text-zinc-300 leading-relaxed font-mono type-cursor"></p>
+                
+                <!-- Prompt -->
+                <div class="absolute bottom-4 right-4 text-xs text-green-600 animate-pulse">
+                    [CLICK TO CONTINUE]
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /* =========================================
+           1. THE SCRIPT (Story Data)
+           ========================================= */
+        const script = [
+            {
+                speaker: "System",
+                pos: "none",
+                text: "London, 1676. The Royal Society is debating the nature of motion.",
+                simMode: "STATIC"
+            },
+            {
+                speaker: "Hooke",
+                pos: "right",
+                text: "Gentlemen, observe this spring. It is a simple creature. I pull it, it fights back.",
+                simMode: "MOUSE_INTERACT_SLOW" // Allow user to pull
+            },
+            {
+                speaker: "Hooke",
+                pos: "right",
+                text: "The force is proportional to the stretch. F equals minus kx. Simple geometry.",
+                simMode: "SHOW_FORCE_VECTOR"
+            },
+            {
+                speaker: "Newton",
+                pos: "left",
+                text: "Yes, Robert. We know your law. But look what happens when you let go.",
+                simMode: "RELEASE_SLOW"
+            },
+            {
+                speaker: "Newton",
+                pos: "left",
+                text: "It moves towards the center. But why doesn't it stop at the center? There is no force there.",
+                simMode: "PAUSE_AT_CENTER" // Sim pauses exactly at x=0
+            },
+            {
+                speaker: "Hooke",
+                pos: "right",
+                text: "Well... it has built up a 'commotion'. It overshoots.",
+                simMode: "RESUME_OSCILLATE"
+            },
+            {
+                speaker: "Newton",
+                pos: "left",
+                text: "Exactly. At the center, the spring is relaxed. The force is dead. Yet the speed is greatest.",
+                simMode: "HIGHLIGHT_VELOCITY"
+            },
+            {
+                speaker: "Leibniz",
+                pos: "center",
+                text: "Perhaps the 'force' is not dead, Isaac. It has merely changed its clothes.",
+                simMode: "SLOW_MOTION"
+            },
+            {
+                speaker: "Newton",
+                pos: "left",
+                text: "Leibniz. You and your 'Vis Viva'.",
+                simMode: "OSCILLATE"
+            },
+            {
+                speaker: "Leibniz",
+                pos: "center",
+                text: "Call it what you will. The 'Living Force' (Vis Viva) depends on motion. v-squared.",
+                simMode: "SHOW_KE_BAR"
+            },
+            {
+                speaker: "Leibniz",
+                pos: "center",
+                text: "When the spring is stretched, the Vis Viva is gone. It is sleeping... as 'Dead Force' (Vis Mortua).",
+                simMode: "SHOW_PE_BAR"
+            },
+            {
+                speaker: "Hooke",
+                pos: "right",
+                text: "So... the tension in my spring transforms into the motion of the mass?",
+                simMode: "SHOW_BOTH_BARS"
+            },
+            {
+                speaker: "Leibniz",
+                pos: "center",
+                text: "Precisely. The total amount remains constant. It flows from Tension to Motion and back.",
+                simMode: "FULL_ENERGY_VIZ"
+            },
+            {
+                speaker: "System",
+                pos: "none",
+                text: "And thus, the Conservation of Energy was born.",
+                simMode: "FULL_ENERGY_VIZ"
+            },
+            {
+                speaker: "System",
+                pos: "none",
+                text: "Simulation loaded. You may now experiment.",
+                simMode: "SANDBOX"
+            }
+        ];
+
+        /* =========================================
+           2. ENGINE & STATE
+           ========================================= */
+        const ui = {
+            dialogueBox: document.getElementById('dialogue-area'),
+            text: document.getElementById('dialogue-text'),
+            name: document.getElementById('speaker-name'),
+            chars: {
+                left: document.getElementById('char-left'),
+                center: document.getElementById('char-center'),
+                right: document.getElementById('char-right'),
+            },
+            overlay: document.getElementById('overlay-text')
+        };
+
+        let state = {
+            lineIndex: 0,
+            isTyping: false,
+            simMode: 'STATIC',
+            mouseX: 0,
+            mouseDown: false
+        };
+
+        // --- Typing Effect ---
+        function typeWriter(text, cb) {
+            state.isTyping = true;
+            ui.text.innerHTML = "";
+            ui.dialogueBox.classList.add('pointer-events-none'); // Prevent click spam
+            
+            let i = 0;
+            const speed = 30; // ms per char
+
+            function step() {
+                if (i < text.length) {
+                    ui.text.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(step, speed);
+                } else {
+                    state.isTyping = false;
+                    ui.dialogueBox.classList.remove('pointer-events-none');
+                    if(cb) cb();
+                }
+            }
+            step();
+        }
+
+        // --- Story Progression ---
+        function advanceStory() {
+            if (state.isTyping) return; // Wait for type finish
+            
+            // If dragging in sandbox, don't advance
+            if (state.simMode === 'SANDBOX' && state.mouseDown) return;
+
+            if (state.lineIndex >= script.length - 1) {
+                // End of story
+                return; 
+            }
+
+            state.lineIndex++;
+            renderScene(script[state.lineIndex]);
+        }
+
+        function renderScene(line) {
+            // Update Sim Mode
+            state.simMode = line.simMode;
+            
+            // Update Characters
+            Object.values(ui.chars).forEach(c => c.classList.remove('active'));
+            if(line.pos === 'left') ui.chars.left.classList.add('active');
+            if(line.pos === 'center') ui.chars.center.classList.add('active');
+            if(line.pos === 'right') ui.chars.right.classList.add('active');
+
+            // Update Name
+            ui.name.innerText = line.speaker;
+            ui.name.style.color = (line.speaker === 'System') ? '#4ade80' : '#e4e4e7';
+
+            // Type Text
+            typeWriter(line.text);
+        }
+
+        ui.dialogueBox.addEventListener('click', advanceStory);
+        document.getElementById('btn-skip').addEventListener('click', () => {
+            state.lineIndex = script.length - 2; // Jump to end
+            advanceStory();
+        });
+
+        /* =========================================
+           3. SIMULATION RENDERER
+           ========================================= */
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let phys = {
+            t: 0,
+            x: 0, // displacement
+            v: 0,
+            k: 0.1,
+            m: 10,
+            amp: 200,
+            dragging: false
+        };
+
+        // Resize
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Mouse Handling for Hooke Interaction
+        canvas.addEventListener('mousedown', (e) => {
+            if(state.simMode.includes('MOUSE') || state.simMode === 'SANDBOX') {
+                phys.dragging = true;
+                state.mouseDown = true;
+            }
+        });
+        window.addEventListener('mouseup', () => {
+            phys.dragging = false;
+            state.mouseDown = false;
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            state.mouseX = e.clientX - rect.left - rect.width/2;
+        });
+
+        // Loop
+        function loop() {
+            const W = canvas.width;
+            const H = canvas.height;
+            const CX = W/2;
+            const CY = H/2;
+            
+            ctx.clearRect(0,0,W,H);
+
+            // --- Physics Logic based on Story Mode ---
+            let showForce = false;
+            let showVel = false;
+            let showKE = false;
+            let showPE = false;
+            let timeScale = 1.0;
+
+            switch (state.simMode) {
+                case 'STATIC':
+                    phys.x = 0;
+                    break;
+                case 'MOUSE_INTERACT_SLOW':
+                    if(phys.dragging) phys.x = state.mouseX;
+                    // Limit
+                    if(phys.x > 300) phys.x = 300;
+                    if(phys.x < -300) phys.x = -300;
+                    break;
+                case 'SHOW_FORCE_VECTOR':
+                    phys.x = 200; // Hold steady
+                    showForce = true;
+                    break;
+                case 'RELEASE_SLOW':
+                    // Just animate slowly towards center
+                    if(phys.x > 0) phys.x -= 2;
+                    timeScale = 0.5;
+                    break;
+                case 'PAUSE_AT_CENTER':
+                    phys.x = 0;
+                    break;
+                case 'RESUME_OSCILLATE':
+                    phys.t += 0.1;
+                    phys.x = phys.amp * Math.cos(phys.t);
+                    break;
+                case 'HIGHLIGHT_VELOCITY':
+                    phys.t += 0.05; // Slow
+                    phys.x = phys.amp * Math.cos(phys.t);
+                    if(Math.abs(phys.x) < 20) showVel = true; // highlight near center
+                    break;
+                case 'SLOW_MOTION':
+                    phys.t += 0.02;
+                    phys.x = phys.amp * Math.cos(phys.t);
+                    break;
+                case 'SHOW_KE_BAR':
+                    phys.t += 0.1;
+                    phys.x = phys.amp * Math.cos(phys.t);
+                    showKE = true;
+                    break;
+                case 'SHOW_PE_BAR':
+                    phys.t += 0.1;
+                    phys.x = phys.amp * Math.cos(phys.t);
+                    showPE = true;
+                    break;
+                case 'SHOW_BOTH_BARS':
+                    phys.t += 0.1;
+                    phys.x = phys.amp * Math.cos(phys.t);
+                    showKE = true; showPE = true;
+                    break;
+                case 'FULL_ENERGY_VIZ':
+                case 'SANDBOX':
+                    if(!phys.dragging) {
+                        phys.t += 0.1;
+                        phys.x = phys.amp * Math.cos(phys.t);
+                    } else {
+                        phys.x = state.mouseX;
+                        phys.t = Math.acos(phys.x/phys.amp) || 0; // sync phase
+                    }
+                    showKE = true; showPE = true;
+                    showForce = true; showVel = true;
+                    break;
+                default:
+                    phys.t += 0.1;
+                    phys.x = phys.amp * Math.cos(phys.t);
+            }
+
+            // Calc Velocity for Vis
+            phys.v = -phys.amp * Math.sin(phys.t);
+            // If dragging, velocity is 0
+            if(phys.dragging || state.simMode === 'SHOW_FORCE_VECTOR') phys.v = 0;
+
+
+            // --- Drawing ---
+
+            // Grid
+            ctx.strokeStyle = '#27272a';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, CY); ctx.lineTo(W, CY);
+            ctx.stroke();
+
+            // Wall
+            ctx.fillStyle = '#27272a';
+            ctx.fillRect(CX - 350, CY - 60, 20, 120);
+
+            // Spring
+            ctx.beginPath();
+            ctx.moveTo(CX - 330, CY);
+            const blockX = CX + phys.x;
+            const springLen = blockX - (CX - 330) - 40;
+            const segs = 20;
+            const step = springLen / segs;
+            for(let i=0; i<=segs; i++) {
+                ctx.lineTo((CX-330) + step*i, CY + (i%2==0? -15 : 15)*(i==0||i==segs?0:1));
+            }
+            
+            // Spring Color based on compression (Hooke's visual)
+            const tension = Math.abs(phys.x) / 300;
+            ctx.strokeStyle = `rgba(${100 + tension*155}, ${255 - tension*100}, ${100}, 0.8)`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Mass
+            ctx.fillStyle = '#18181b';
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 2;
+            const box = 80;
+            
+            // Glow effect
+            ctx.shadowBlur = (state.simMode.includes('ENERGY') || state.simMode === 'SANDBOX') ? (phys.v*phys.v)/1000 : 0;
+            ctx.shadowColor = '#4ade80';
+            
+            ctx.fillRect(blockX - box/2, CY - box/2, box, box);
+            ctx.strokeRect(blockX - box/2, CY - box/2, box, box);
+            ctx.shadowBlur = 0; // reset
+
+            // Vectors & Overlays
+            
+            // Force Vector (Red) - Hooke's Law
+            if(showForce && Math.abs(phys.x) > 10) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(blockX, CY);
+                // Force opposes displacement
+                const fLen = -phys.x * 0.8;
+                ctx.lineTo(blockX + fLen, CY);
+                ctx.stroke();
+                // Arrowhead
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(blockX + fLen, CY, 5, 0, Math.PI*2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#ef4444';
+                ctx.font = "bold 12px monospace";
+                ctx.fillText("FORCE", blockX + fLen/2, CY - 20);
+            }
+
+            // Velocity Vector (Green) - Vis Viva
+            if(showVel && Math.abs(phys.v) > 10) {
+                ctx.strokeStyle = '#4ade80';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(blockX, CY);
+                const vLen = phys.v * 0.8; 
+                ctx.lineTo(blockX + vLen, CY);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#4ade80';
+                ctx.font = "bold 12px monospace";
+                ctx.fillText("MOTION", blockX + vLen/2, CY + 30);
+            }
+
+            // Energy Bars (Dynamic rendering in world space)
+            if(showKE || showPE) {
+                const barW = 20;
+                const maxH = 100;
+                const keH = Math.min((Math.abs(phys.v)/200)**2 * maxH, maxH);
+                const peH = Math.min((Math.abs(phys.x)/200)**2 * maxH, maxH);
+
+                // Draw beside block
+                if(showPE) {
+                    ctx.fillStyle = 'rgba(96, 165, 250, 0.5)'; // Blue
+                    ctx.fillRect(blockX - 50, CY - 120, barW, -peH);
+                    ctx.fillStyle = '#60a5fa';
+                    ctx.fillText("PE", blockX - 50, CY - 125);
+                }
+                if(showKE) {
+                    ctx.fillStyle = 'rgba(74, 222, 128, 0.5)'; // Green
+                    ctx.fillRect(blockX - 25, CY - 120, barW, -keH);
+                    ctx.fillStyle = '#4ade80';
+                    ctx.fillText("KE", blockX - 25, CY - 125);
+                }
+            }
+
+            requestAnimationFrame(loop);
+        }
+        
+        // Start
+        renderScene(script[0]);
+        loop();
+
+    </script>
+</body>
+</html>
