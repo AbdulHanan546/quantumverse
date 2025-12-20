@@ -194,7 +194,7 @@ const runPulseSim = (canvas) => {
 /*                             DATA DEFINITION                                */
 /* -------------------------------------------------------------------------- */
 
-export const TOPIC_8 = [
+export const SLIDES_8 = [
     {
         id: 1,
         type: "intro",
