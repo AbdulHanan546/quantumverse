@@ -16,6 +16,7 @@ import { comptonEffectTopic } from "./data/compton";
 import { Simulations } from "./components/Simulations";
 import { TopicFlow } from "./components/TopicFlow";
 import Leaderboard from "./components/Leaderboards";
+import { TestTopic } from "./components/TestTopic";
 
 function AppWrapper() {
   const [topicData, setTopicData] = useState<any | null>(null);
@@ -93,6 +94,7 @@ function AppWrapper() {
 
         {/* Default Routes */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/test/:mode/:number" element={<TestTopic />} />
         {/* <Route path="/slides" element={<TopicRenderer components={comptonEffectTopic} />} /> */}
         <Route path="/simulations" element={<Simulations />} />
         <Route path="/leaderboards" element={<Leaderboard />} />
