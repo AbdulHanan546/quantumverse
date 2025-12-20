@@ -14,6 +14,7 @@ import { getMyProgress, getMyStats } from "./api/progress";
 import { Profile } from "./components/Profile";
 import { comptonEffectTopic } from "./data/compton";
 import { Simulations } from "./components/Simulations";
+import { TopicFlow } from "./components/TopicFlow";
 
 function AppWrapper() {
   const [topicData, setTopicData] = useState<any | null>(null);
@@ -34,19 +35,19 @@ function AppWrapper() {
       console.error("Failed to load topic:", err);
     }
   };
-function TopicRendererWrapper() {
-  const location = useLocation();
-  const state = location.state as { components?: any[] };
+// function TopicRendererWrapper() {
+//   const location = useLocation();
+//   const state = location.state as { components?: any[] };
 
-  if (state?.components?.length) {
-    return <TopicRenderer components={state.components} />;
-  }
-  return (
-    <div className="p-10 text-center text-slate-400">
-      No topic loaded. Please go back and choose one.
-    </div>
-  );
-}
+//   if (state?.components?.length) {
+//     return <TopicRenderer components={state.components} />;
+//   }
+//   return (
+//     <div className="p-10 text-center text-slate-400">
+//       No topic loaded. Please go back and choose one.
+//     </div>
+//   );
+// }
   // Hide Navbar for any topic route
   // const hideNavbar = location.pathname.startsWith("/topic/") || location.pathname === '/';
 
@@ -76,9 +77,9 @@ function TopicRendererWrapper() {
 
         {/* Topic Renderer */}
         <Route
-          path="/topic/:slug"
+          path="/topic/:topicId"
           element={
-            <TopicRendererWrapper />
+            <TopicFlow />
           }
         />
 
