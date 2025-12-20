@@ -4,12 +4,15 @@ import { SimulationEngine } from './SimulationEngine';
 import TopicViewer from './TopicRenderer';
 import { StoryEngine } from './StoryEngine';
 import { TOPIC_MAP } from '../content/data';
+import { api } from '../api/client';
 
+// Matches the backend Entity JSON structure
 interface TrackingData {
   timeSpent: {
     story: number;
     theory: number;
     lab: number;
+    total: number;
   };
   completed: {
     story: boolean;
@@ -17,52 +20,70 @@ interface TrackingData {
     lab: boolean;
   };
   achievements: string[];
-  totalTime: number;
+  lastStage: string;
+  lastUpdated: string;
 }
 
-// ==========================================
-// 4. Main Component: TopicFlow
-// ==========================================
-
-// ADDED: 'intro' to the Stage type
 type Stage = 'intro' | 'story' | 'theory' | 'lab' | 'transition' | 'summary';
 
 export function TopicFlow() {
   const { topicId } = useParams<{ topicId: string }>();
   const navigate = useNavigate();
   
-  // UPDATED: Initial state is now 'intro'
   const [currentStage, setCurrentStage] = useState<Stage>('intro');
   const [nextStage, setNextStage] = useState<Stage | null>(null);
   const [transitionMessage, setTransitionMessage] = useState("");
   
   const topicData = topicId ? TOPIC_MAP[topicId] : null;
 
+  // Initialize tracking state
   const [tracking, setTracking] = useState<TrackingData>({
-    timeSpent: { story: 0, theory: 0, lab: 0 },
+    timeSpent: { story: 0, theory: 0, lab: 0, total: 0 },
     completed: { story: false, theory: false, lab: false },
     achievements: [],
-    totalTime: 0
+    lastStage: 'intro',
+    lastUpdated: new Date().toISOString()
   });
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Ref to keep track of current tracking state inside intervals without deps issues
+  const trackingRef = useRef(tracking);
+  useEffect(() => { trackingRef.current = tracking; }, [tracking]);
+
+  // --- API Sync Function ---
+  const syncProgressToBackend = async (dataToSync: TrackingData) => {
+    if (!topicId) return;
+
+    try {
+      await api.post("/user-progress/update", { topicId, stats: dataToSync })
+      console.log("Progress synced successfully");
+    } catch (error) {
+      console.error("Failed to sync progress:", error);
+    }
+  };
 
   // --- Timer Logic ---
   useEffect(() => {
     if (!topicData) return;
     
-    // UPDATED: Don't run timer during 'intro'
+    // Don't run timer during passive stages
     if (currentStage === 'intro' || currentStage === 'transition' || currentStage === 'summary') return;
 
     timerRef.current = setInterval(() => {
-      setTracking(prev => ({
-        ...prev,
-        totalTime: prev.totalTime + 1,
-        timeSpent: {
-          ...prev.timeSpent,
-          [currentStage]: prev.timeSpent[currentStage as keyof typeof prev.timeSpent] + 1
-        }
-      }));
+      setTracking(prev => {
+        const newData = {
+          ...prev,
+          timeSpent: {
+            ...prev.timeSpent,
+            total: prev.timeSpent.total + 1,
+            [currentStage]: prev.timeSpent[currentStage as keyof typeof prev.timeSpent] + 1 // Dynamic key update
+          },
+          lastStage: currentStage,
+          lastUpdated: new Date().toISOString()
+        };
+        return newData;
+      });
     }, 1000);
 
     return () => {
@@ -72,45 +93,87 @@ export function TopicFlow() {
 
   // --- Handlers ---
 
-  // ADDED: Handler to leave intro and start the story
   const startModule = () => {
     setCurrentStage('story');
+    // Optional: Sync start time
+    syncProgressToBackend({
+        ...tracking,
+        lastStage: 'story',
+        lastUpdated: new Date().toISOString()
+    });
   };
 
   const handleTransition = (next: Stage, msg: string) => {
     setNextStage(next);
     setTransitionMessage(msg);
     setCurrentStage('transition');
-    
-    setTimeout(() => {
-        // Optional auto-advance logic specific to transitions
-    }, 3000);
   };
 
   const finishStory = () => {
-    setTracking(prev => ({ ...prev, completed: { ...prev.completed, story: true } }));
+    // 1. Calculate new state
+    const newTracking = {
+        ...trackingRef.current, // Use ref to get latest timer values
+        completed: { ...trackingRef.current.completed, story: true },
+        lastStage: 'story',
+        lastUpdated: new Date().toISOString()
+    };
+    
+    // 2. Update Local State
+    setTracking(newTracking);
+    
+    // 3. Sync to Backend Immediately
+    syncProgressToBackend(newTracking);
+
     handleTransition('theory', "Story complete! Now, let's dive into the Theory.");
   };
 
   const finishTheory = () => {
-    setTracking(prev => ({ ...prev, completed: { ...prev.completed, theory: true } }));
+    const newTracking = {
+        ...trackingRef.current,
+        completed: { ...trackingRef.current.completed, theory: true },
+        lastStage: 'theory',
+        lastUpdated: new Date().toISOString()
+    };
+    
+    setTracking(newTracking);
+    syncProgressToBackend(newTracking);
+
     handleTransition('lab', "Theory learned! It's time to test your skills in the Lab.");
   };
 
   const finishLab = () => {
-    setTracking(prev => ({ ...prev, completed: { ...prev.completed, lab: true } }));
+    const newTracking = {
+        ...trackingRef.current,
+        completed: { ...trackingRef.current.completed, lab: true },
+        lastStage: 'lab',
+        lastUpdated: new Date().toISOString()
+    };
+
+    setTracking(newTracking);
+    syncProgressToBackend(newTracking);
   };
 
   const goToSummary = () => {
+    // Final sync before summary
+    syncProgressToBackend({
+        ...trackingRef.current,
+        lastStage: 'summary',
+        lastUpdated: new Date().toISOString()
+    });
     handleTransition('summary', "Simulation Complete! Let's see how you did.");
   };
 
   const handleAchievement = (achievement: string) => {
     if (!tracking.achievements.includes(achievement)) {
-      setTracking(prev => ({
-        ...prev,
-        achievements: [...prev.achievements, achievement]
-      }));
+      const newTracking = {
+        ...trackingRef.current,
+        achievements: [...trackingRef.current.achievements, achievement],
+        lastUpdated: new Date().toISOString()
+      };
+
+      setTracking(newTracking);
+      // Sync immediately on achievement unlock
+      syncProgressToBackend(newTracking);
     }
   };
 
@@ -131,14 +194,12 @@ export function TopicFlow() {
     return <div className="text-white p-10">Topic not found.</div>;
   }
 
-  const isLab = currentStage === 'lab';
   const isLabFinished = tracking.completed.lab;
 
   // --- Render Helpers ---
 
   const renderContent = () => {
     switch (currentStage) {
-      // ADDED: Intro Case
       case 'intro':
         return (
           <div className="flex flex-col items-center justify-center h-full bg-black text-white animate-fadeIn px-6">
@@ -203,7 +264,7 @@ export function TopicFlow() {
                 </div>
                 <div>
                   <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Session Time</h3>
-                  <p className="text-2xl font-mono text-white mt-1">{formatTime(tracking.totalTime)}</p>
+                  <p className="text-2xl font-mono text-white mt-1">{formatTime(tracking.timeSpent.total)}</p>
                 </div>
               </div>
 
@@ -291,10 +352,7 @@ export function TopicFlow() {
         {renderContent()}
       </div>
 
-      {/* 
-        UI Overlay
-        UPDATED: Condition allows hiding the overlay during 'intro', 'summary', and 'transition'
-      */}
+      {/* UI Overlay */}
       {currentStage !== 'summary' && currentStage !== 'transition' && currentStage !== 'intro' && (
         <>
           <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">

@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProgressModule } from './progress/progress.module';
 import { GenerationModule } from './generation/generation.module';
+import { UserProgressModule } from './user-progress/user-progress.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { GenerationModule } from './generation/generation.module';
     UsersModule,
     AuthModule,
     ProgressModule,
+    UserProgressModule,
     GenerationModule,
   ],
 })

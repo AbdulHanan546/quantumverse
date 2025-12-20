@@ -10,7 +10,8 @@ import {
   Waves, 
   Zap,
   ArrowRight,
-  User2
+  User2,
+  BarChart2
 } from "lucide-react";
 import { cms, cmsUrl } from "../../api/cms";
 import chapterData from "../../content/chapters.json"
@@ -136,10 +137,16 @@ export default function StudentHome() {
       
       {/* --- HERO SECTION (Unchanged) --- */}
       <div className="relative w-full aspect-[21/9] min-h-[400px] overflow-hidden group">
-        <Link to="/profile" className="flex gap-2 items-center absolute z-50 top-8 right-8 tracking-widest font-light font-heading hover:text-green-200">
+      <div className="flex gap-8 items-center absolute z-50 top-8 right-8 tracking-widest font-light font-heading">
+        <Link to="/profile" className="flex gap-2 items-center tracking-widest font-light font-heading hover:text-green-500">
           <User2 />
           <span>CHECK PROFILE</span>
         </Link>
+        <Link to="/leaderboards" className="flex gap-2 items-center tracking-widest font-light font-heading hover:text-cyan-500">
+          <BarChart2 />
+          <span>CHECK LEADERBOARDS</span>
+        </Link>
+      </div>
         <div className="absolute inset-0">
           <img 
             src={currentConfig.image} 

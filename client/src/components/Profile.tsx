@@ -11,11 +11,11 @@ import {
   Lock,
   ArrowLeft
 } from 'lucide-react';
-import { getMyStats } from '../api/progress';
-import { format} from "date-fns"
+import { getMyStats } from '../api/user-progress';
+import { format } from "date-fns";
 import { useNavigate } from 'react-router-dom';
 
-// --- Types ---
+// --- Types Matching Backend Response ---
 interface StatsData {
   overview: {
     account_age_days: number;
@@ -63,7 +63,7 @@ export function Profile() {
     const fetchStats = async () => {
       try {
         const data = await getMyStats();
-        setStats(data as any);
+        setStats(data);
       } catch (err) {
         console.error(err);
         setError('Failed to load profile statistics.');
@@ -94,24 +94,22 @@ export function Profile() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4 md:p-8 font-sans selection:bg-emerald-500/30">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        
         {/* Header Section */}
         <div className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-6 border border-zinc-800/50 flex items-center justify-between shadow-lg">
           <div className='flex gap-4 items-center'>
-            {/* Back button */}
-        <button onClick={() => navigate("/student")} className='bg-zinc-900 hover:bg-zinc-700 cursor-pointer text-white px-4 py-2 rounded-lg'>
-            <ArrowLeft />
-        </button>
-        <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-            Subject Profile
-            </h1>
-            <p className="text-zinc-400 mt-1 text-sm md:text-base">
-            Neural interface statistics and progression tracking.
-            </p>
-        </div>
+            <button onClick={() => navigate("/student")} className='bg-zinc-900 hover:bg-zinc-700 cursor-pointer text-white px-4 py-2 rounded-lg transition-colors border border-zinc-800'>
+                <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                Subject Profile
+                </h1>
+                <p className="text-zinc-400 mt-1 text-sm md:text-base">
+                Neural interface statistics and progression tracking.
+                </p>
+            </div>
           </div>
-          <div className="mt-4 md:mt-0 flex items-center gap-2 bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full text-sm font-medium shadow-[0_0_10px_-3px_rgba(16,185,129,0.2)]">
+          <div className="hidden md:flex items-center gap-2 bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full text-sm font-medium shadow-[0_0_10px_-3px_rgba(16,185,129,0.2)]">
             <Calendar className="w-4 h-4" />
             <span>Operational for {stats.overview.account_age_days} days</span>
           </div>
@@ -122,7 +120,7 @@ export function Profile() {
           <StatCard 
             title="Topics Completed" 
             value={stats.topics.completed} 
-            subValue={`/${stats.topics.total_interacted} initiated`}
+            subValue={`/${stats.chapters.progress_breakdown.total_topics_available} initiated`}
             icon={<BookOpen className="w-5 h-5" />}
           />
           <StatCard 
