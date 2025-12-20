@@ -932,7 +932,7 @@ Now this simulation was on simple harmonic motion and complicated
 We don't have to use every component necessarily, ORDER can depend on how u want to teach ok ???
 main goal is to teach the topic
 I will always mention a topic like "1. Simple harmonic Motion"
-U will do export const TOPIC_1 = [] (that array) no need to export function ok ?
+U will do export const SLIDES_1 = [] (that array) no need to export function ok ?
 and that file has everything including any simulations it uses.... the main thing to be exported is array
 The topic has to be covered, that's the hardcore requirement, but content will be very simple ok....
 So the topic u should give me slides is:
