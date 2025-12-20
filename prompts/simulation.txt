@@ -1,0 +1,384 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { FaTrophy, FaCheckCircle, FaLock, FaBars, FaTimes, FaChevronRight } from 'react-icons/fa';
+
+// --- Types ---
+
+export interface Achievement<T> {
+  id: string;
+  title: string;
+  description: string;
+  /** Returns true if the condition is met based on current simulation values */
+  condition: (values: T) => boolean;
+}
+
+interface SimulationEngineProps<T> {
+  /** Title displayed in header */
+  title?: string;
+  simulation: {
+    /** Initial state of the simulation variables */
+    initialValues: T;
+    /** List of achievements to track */
+    achievements: Achievement<T>[];
+    /** Render prop for the actual simulation (Canvas, WebGL, etc.) */
+    renderSimulation: (props: { values: T }) => React.ReactNode;
+    /** Render prop for the control panel (Inputs, Sliders) */
+    renderControls: (props: { 
+      values: T; 
+      setValues: React.Dispatch<React.SetStateAction<T>>;
+      setValue: (key: keyof T, val: any) => void;
+    }) => React.ReactNode;
+    /** Callback when an achievement is unlocked */
+    
+  };
+  onAchievementUnlock?: (id: string) => void;
+  /** Callback when ALL achievements are unlocked */
+  onFinish?: () => void;
+}
+
+// --- The Generic Engine Component ---
+
+export const SimulationEngine = <T extends object>({
+  simulation,
+  title = "Simulation",
+  onFinish,
+  onAchievementUnlock
+}: SimulationEngineProps<T>) => {
+  // State
+  const { achievements, initialValues, renderControls, renderSimulation } = simulation;
+  const [values, setValues] = useState<T>(initialValues);
+  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [hasFinished, setHasFinished] = useState(false);
+
+  // Helper to set a single value
+  const setValue = (key: keyof T, val: any) => {
+    setValues(prev => ({ ...prev, [key]: val }));
+  };
+
+  // Achievement Monitoring System
+  useEffect(() => {
+    let newUnlock = false;
+    const newUnlockedIds = new Set(unlockedIds);
+
+    achievements.forEach(ach => {
+      if (!unlockedIds.has(ach.id)) {
+        if (ach.condition(values)) {
+          newUnlockedIds.add(ach.id);
+          newUnlock = true;
+          if (onAchievementUnlock) onAchievementUnlock(ach.id);
+        }
+      }
+    });
+
+    if (newUnlock) {
+      setUnlockedIds(newUnlockedIds);
+      // Check for total completion
+      if (newUnlockedIds.size === achievements.length && !hasFinished) {
+        setHasFinished(true);
+        if (onFinish) onFinish();
+      }
+    }
+  }, [values, achievements, unlockedIds, onAchievementUnlock, onFinish, hasFinished]);
+
+  // Calculate Progress
+  const progress = Math.round((unlockedIds.size / achievements.length) * 100);
+
+  return (
+    <div className="relative w-full min-h-screen bg-zinc-950 text-zinc-200 font-sans flex overflow-hidden">
+      
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'mr-80' : 'mr-0'}`}>
+        
+        {/* Header */}
+
+        {/* Simulation Canvas Area */}
+        <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center p-4">
+            <header className="absolute left-4 top-4 h-16 border-b rounded-xl border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur z-20">
+          <h1 className="text-xl font-bold text-green-400 tracking-wider uppercase flex items-center gap-2">
+            <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+            {title}
+          </h1>
+        </header>
+          <div className="w-full h-full relative rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 shadow-2xl">
+            {renderSimulation({ values })}
+          </div>
+        </div>
+
+        {/* Controls Area (Bottom) */}
+        <div className="h-auto min-h-[140px] bg-zinc-900 border-t border-zinc-800 p-6 z-20">
+            {renderControls({ values, setValues, setValue })}
+        </div>
+      </div>
+
+      {/* Achievement Sidebar (Absolute Overlay or Flex Item depending on logic, here Fixed right) */}
+      <div 
+        className={`fixed top-0 right-0 h-full w-80 bg-zinc-900 border-l border-zinc-800 shadow-2xl z-30 transform transition-transform duration-300 ease-in-out flex flex-col
+        ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      >
+        {/* Sidebar Header */}
+        <div className="p-6 border-b border-zinc-800 bg-zinc-950">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <FaTrophy className="text-yellow-500" />
+              Achievements
+            </h2>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-green-500 to-emerald-400 h-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="text-xs text-right mt-2 text-zinc-400 font-mono">
+            {unlockedIds.size} / {achievements.length} UNLOCKED
+          </div>
+        </div>
+
+        {/* Achievement List */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {achievements.map((ach) => {
+            const isUnlocked = unlockedIds.has(ach.id);
+            return (
+              <div 
+                key={ach.id} 
+                className={`
+                  relative p-4 rounded-lg border transition-all duration-500
+                  ${isUnlocked 
+                    ? 'bg-green-900/10 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]' 
+                    : 'bg-zinc-800/30 border-zinc-800 grayscale opacity-70'}
+                `}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-1 text-lg ${isUnlocked ? 'text-green-400' : 'text-zinc-600'}`}>
+                    {isUnlocked ? <FaCheckCircle /> : <FaLock />}
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-bold ${isUnlocked ? 'text-green-100' : 'text-zinc-400'}`}>
+                      {ach.title}
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                      {ach.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Completion Footer */}
+        {hasFinished && (
+            <div className="p-6 bg-green-500/10 border-t border-green-500/20 text-center animate-pulse">
+                <span className="text-green-400 font-bold text-sm tracking-widest uppercase">Simulation Mastered</span>
+            </div>
+        )}
+      </div>
+    </div>
+  );
+};
+This is my simulation engine, and below is an example of how data is passed to it
+import React, { useEffect, useRef } from 'react';
+import { type Achievement } from '../../components/SimulationEngine';
+
+// 1. Interface
+interface SimState {
+  mass: number;
+  k: number;
+  amplitude: number;
+}
+
+// 2. Achievements
+const achievements: Achievement<SimState>[] = [
+  {
+    id: 'heavy-lifter',
+    title: 'Heavy Lifter',
+    description: 'Simulate a mass greater than 9.0 kg.',
+    condition: (s) => s.mass > 9.0
+  },
+  {
+    id: 'high-frequency',
+    title: 'High Frequency',
+    description: 'Create a stiff spring (k > 18) with a light mass (m < 2).',
+    condition: (s) => s.k > 18 && s.mass < 2
+  },
+  {
+    id: 'perfect-stillness',
+    title: 'Perfect Stillness',
+    description: 'Set the amplitude to 0 to stop the motion entirely.',
+    condition: (s) => s.amplitude === 0
+  },
+  {
+    id: 'resonance-master',
+    title: 'Balanced System',
+    description: 'Match Mass and K perfectly (e.g. 5kg and 5N/m).',
+    condition: (s) => s.mass === s.k
+  }
+];
+
+// 3. Canvas
+const PhysicsCanvas = ({ values }: { values: SimState }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const requestRef = useRef<number>();
+  const timeRef = useRef<number>(0);
+  const valuesRef = useRef(values);
+
+  useEffect(() => { valuesRef.current = values; }, [values]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = 0, height = 0;
+
+    const animate = () => {
+        // Resize logic tailored for the container
+        const parent = canvas.parentElement;
+        if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+            width = parent.clientWidth;
+            height = parent.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        const { mass, k, amplitude } = valuesRef.current;
+        timeRef.current += 0.1;
+        
+        const omega = Math.sqrt(k / mass);
+        const disp = amplitude * Math.cos(omega * timeRef.current);
+
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(0, 0, width, height);
+
+        // Center line
+        ctx.strokeStyle = '#27272a';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const blockX = centerX + disp;
+
+        // Spring
+        ctx.beginPath();
+        ctx.strokeStyle = '#52525b';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.moveTo(0, centerY);
+        
+        const coils = 12;
+        for(let i=0; i<=coils; i++) {
+            const x = (i/coils) * blockX;
+            const yOffset = i%2===0 ? -15 : 15;
+            if (i===0 || i===coils) ctx.lineTo(x, centerY);
+            else ctx.lineTo(x, centerY + yOffset);
+        }
+        ctx.stroke();
+
+        // Mass Block
+        ctx.fillStyle = '#18181b';
+        ctx.strokeStyle = '#4ade80';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(74, 222, 128, 0.4)';
+        ctx.shadowBlur = 25;
+        
+        const size = 50 + (mass * 4);
+        ctx.fillRect(blockX - size/2, centerY - size/2, size, size);
+        ctx.strokeRect(blockX - size/2, centerY - size/2, size, size);
+        
+        // Label
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#4ade80';
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${mass.toFixed(1)}kg`, blockX, centerY);
+
+        requestRef.current = requestAnimationFrame(animate);
+    };
+
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current!);
+  }, []);
+
+  return <canvas ref={canvasRef} className="block w-full h-full" />;
+};
+
+const renderControls = ({ values, setValue }) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            
+            {/* Mass Slider */}
+            <div className="space-y-3 group">
+              <div className="flex justify-between items-end">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Mass (m)</label>
+                <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+                    <span className="text-sm font-mono text-green-400 font-bold">{values.mass.toFixed(1)} <span className="text-zinc-500 text-xs">kg</span></span>
+                </div>
+              </div>
+              <input 
+                type="range" min="0.5" max="10" step="0.5"
+                value={values.mass}
+                onChange={(e) => setValue('mass', parseFloat(e.target.value))}
+                className="glow-range"
+              />
+            </div>
+
+            {/* Spring Constant Slider */}
+            <div className="space-y-3 group">
+              <div className="flex justify-between items-end">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Spring Constant (k)</label>
+                <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+                    <span className="text-sm font-mono text-green-400 font-bold">{values.k.toFixed(0)} <span className="text-zinc-500 text-xs">N/m</span></span>
+                </div>
+              </div>
+              <input 
+                type="range" min="1" max="20" step="1"
+                value={values.k}
+                onChange={(e) => setValue('k', parseFloat(e.target.value))}
+                className="glow-range"
+              />
+            </div>
+
+            {/* Amplitude Slider */}
+            <div className="space-y-3 group">
+              <div className="flex justify-between items-end">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Amplitude (A)</label>
+                <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+                    <span className="text-sm font-mono text-green-400 font-bold">{values.amplitude.toFixed(0)} <span className="text-zinc-500 text-xs">px</span></span>
+                </div>
+              </div>
+              <input 
+                type="range" min="0" max="250" step="10"
+                value={values.amplitude}
+                onChange={(e) => setValue('amplitude', parseFloat(e.target.value))}
+                className="glow-range"
+              />
+            </div>
+
+          </div>
+)
+
+export const SIMULATION_1 = {
+    title: 'Harmonic Oscillator',
+    initialValues: { mass: 2, k: 5, amplitude: 100 },
+    achievements: achievements,
+    renderSimulation: ({ values }) => (
+        <PhysicsCanvas values={values} />
+    ),
+    renderControls: renderControls
+} (if possible make renderSimulation function directly and pass it)
+
+So accordingly you have to generate simulation of a topic that I am going to provide you
+Remember, the story is meant to be simple and never use physics jargons, it is targetted to 9th 10th grade audience, topic might be bachelors level but u always explain it in interesting way, sarcasm is allowed too
+u have to generate file like above and name the export const variable like SIMULATION_1 (i.e SIMULATION_{numberoftopic}) and the object should always provide title, initialValues (depending on simulation and renderControls), renderSimulation obviously and renderControls
+And achievements should be around 4-8 (your choice) and in a way to make user explore simulation in a meaningful way ok
+imports are the same
+here is topic:
+-> 1. Simple Harmonic Motion

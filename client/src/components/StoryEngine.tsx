@@ -62,7 +62,7 @@ export const StoryEngine: React.FC<StoryEngineProps> = ({ title, script, onFinis
     setDisplayedText('');
     setIsTyping(true);
     let charIndex = 0;
-    const fullText = currentStep.text;
+    const fullText = `$${currentStep.text}`;
     
     const interval = setInterval(() => {
       if (charIndex < fullText.length) {
