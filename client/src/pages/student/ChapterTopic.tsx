@@ -8,7 +8,7 @@ import {
   Atom, 
   ArrowRight
 } from "lucide-react";
-import { cms, cmsUrl } from "../../api/cms";
+import chapterData from "../../content/chapters.json";
 
 // --- Types based on your JSON structure ---
 interface Topic {
@@ -45,12 +45,7 @@ export default function ChapterTopics() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Fetch the full JSON list
-        const { data } = await cms.get("/chapters.json");
-        
-        // Find the specific chapter by ID
-        // Note: URL params are strings, JSON IDs are usually numbers
-        const found = data.find((c: ChapterRaw) => c.id.toString() == id);
+        const found = chapterData.find((c: ChapterRaw) => c.id.toString() == id);
 
         if (!found) {
           throw new Error("Chapter not found");
@@ -112,7 +107,7 @@ export default function ChapterTopics() {
           {chapter.thumbnail ? (
             <img 
               // Using the requested URL format
-              src={`${cmsUrl}images/chapter-thumbnails/${chapter.thumbnail}`} 
+              src={`/chapter-thumbnails/${chapter.thumbnail}`} 
               alt={chapter.title}
               className="w-full h-full object-cover opacity-60 transition-transform duration-1000 transform group-hover:scale-105" 
             />

@@ -13,6 +13,7 @@ import {
   User2
 } from "lucide-react";
 import { cms, cmsUrl } from "../../api/cms";
+import chapterData from "../../content/chapters.json"
 
 // --- Types ---
 interface Topic {
@@ -90,7 +91,7 @@ export default function StudentHome() {
     async function loadChapters() {
       try {
         // FETCHING LOCAL JSON
-        const { data } = await cms.get("/chapters.json");
+        const data = chapterData;
 
         const formatted: Chapter[] = data.map((chapter: any) => ({
           id: chapter.id,
@@ -240,7 +241,7 @@ export default function StudentHome() {
                         {chapter.thumbnail ? (
                           <img 
                             // Assuming images are in public/assets or similar. Adjust path as needed.
-                            src={`${cmsUrl}images/chapter-thumbnails/${chapter.thumbnail}`} 
+                            src={`/chapter-thumbnails/${chapter.thumbnail}`} 
                             alt={chapter.name} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-80 group-hover:opacity-100"
                           />

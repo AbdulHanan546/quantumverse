@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // Added useNavigate
-import { planckScript } from '../content/stories/18';
-import { DATA } from '../pages/student/Test';
-import { TOPIC_18 } from "../slides/18"
+import { useParams, useNavigate } from 'react-router-dom';
 import { SimulationEngine } from './SimulationEngine';
 import TopicViewer from './TopicRenderer';
 import { StoryEngine } from './StoryEngine';
-import { SIMULATION_1 } from './HarmonicMotionDemo';
+import { TOPIC_MAP } from '../content/data';
 
 interface TrackingData {
   timeSpent: {
@@ -24,43 +21,23 @@ interface TrackingData {
 }
 
 // ==========================================
-// 3. Data Map
-// ==========================================
-
-export const TOPIC_MAP: Record<string, any> = {
-  "1": {
-    title: "Simple Harmonic Motion",
-    story: planckScript,
-    theory: TOPIC_18,
-    lab: SIMULATION_1
-  },
-  "2": {
-    title: "Quantum Physics",
-    story: { content: "In a world smaller than light..." },
-    theory: [{ id: "s1", content: "Wave particle duality." }],
-    lab: { config: "quantum_lab_v1" }
-  }
-};
-
-// ==========================================
 // 4. Main Component: TopicFlow
 // ==========================================
 
-type Stage = 'story' | 'theory' | 'lab' | 'transition' | 'summary';
+// ADDED: 'intro' to the Stage type
+type Stage = 'intro' | 'story' | 'theory' | 'lab' | 'transition' | 'summary';
 
 export function TopicFlow() {
   const { topicId } = useParams<{ topicId: string }>();
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
   
-  // State
-  const [currentStage, setCurrentStage] = useState<Stage>('story');
+  // UPDATED: Initial state is now 'intro'
+  const [currentStage, setCurrentStage] = useState<Stage>('intro');
   const [nextStage, setNextStage] = useState<Stage | null>(null);
   const [transitionMessage, setTransitionMessage] = useState("");
   
-  // Data retrieval
   const topicData = topicId ? TOPIC_MAP[topicId] : null;
 
-  // Tracking
   const [tracking, setTracking] = useState<TrackingData>({
     timeSpent: { story: 0, theory: 0, lab: 0 },
     completed: { story: false, theory: false, lab: false },
@@ -68,13 +45,14 @@ export function TopicFlow() {
     totalTime: 0
   });
 
-  // Timer Ref to clear intervals
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // --- Timer Logic ---
   useEffect(() => {
     if (!topicData) return;
-    if (currentStage === 'transition' || currentStage === 'summary') return;
+    
+    // UPDATED: Don't run timer during 'intro'
+    if (currentStage === 'intro' || currentStage === 'transition' || currentStage === 'summary') return;
 
     timerRef.current = setInterval(() => {
       setTracking(prev => ({
@@ -94,13 +72,16 @@ export function TopicFlow() {
 
   // --- Handlers ---
 
+  // ADDED: Handler to leave intro and start the story
+  const startModule = () => {
+    setCurrentStage('story');
+  };
+
   const handleTransition = (next: Stage, msg: string) => {
     setNextStage(next);
     setTransitionMessage(msg);
     setCurrentStage('transition');
     
-    // Auto-advance logic (only for story/theory transitions)
-    // We do not auto-advance into summary from lab anymore
     setTimeout(() => {
         // Optional auto-advance logic specific to transitions
     }, 3000);
@@ -117,8 +98,6 @@ export function TopicFlow() {
   };
 
   const finishLab = () => {
-    // UPDATED: Just mark as complete, do NOT transition immediately.
-    // The user must click the "Topic Completed" button.
     setTracking(prev => ({ ...prev, completed: { ...prev.completed, lab: true } }));
   };
 
@@ -142,7 +121,6 @@ export function TopicFlow() {
     }
   };
 
-  // --- Format Time Utility ---
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
@@ -153,7 +131,6 @@ export function TopicFlow() {
     return <div className="text-white p-10">Topic not found.</div>;
   }
 
-  // --- UI Logic ---
   const isLab = currentStage === 'lab';
   const isLabFinished = tracking.completed.lab;
 
@@ -161,6 +138,28 @@ export function TopicFlow() {
 
   const renderContent = () => {
     switch (currentStage) {
+      // ADDED: Intro Case
+      case 'intro':
+        return (
+          <div className="flex flex-col items-center justify-center h-full bg-black text-white animate-fadeIn px-6">
+            <div className="text-center max-w-2xl">
+              <p className="text-zinc-500 uppercase tracking-widest text-sm mb-4">Module Preparation</p>
+              <h1 className="text-5xl font-light mb-8 text-white">{topicData.title}</h1>
+              <p className="text-xl text-zinc-400 font-light mb-12">
+                You are about to enter the learning environment. 
+                We will begin with an interactive story, followed by theory concepts, 
+                and finally a hands-on simulation lab.
+              </p>
+              <button 
+                onClick={startModule} 
+                className="px-10 py-4 border border-zinc-500 text-zinc-300 rounded-full hover:bg-white hover:text-black hover:border-white transition-all duration-300 text-lg tracking-wider uppercase"
+              >
+                Start Learning
+              </button>
+            </div>
+          </div>
+        );
+
       case 'story':
         return <StoryEngine title={topicData.title} script={topicData.story} onFinish={finishStory} />;
       case 'theory':
@@ -170,7 +169,7 @@ export function TopicFlow() {
       case 'transition':
         return (
           <div className="flex flex-col items-center justify-center h-full bg-black text-white animate-fadeIn">
-            <h2 className="text-3xl font-light mb-6 text-center max-w-lg">{transitionMessage}</h2>
+            <h2 className="text-3xl font-light mb-6 text-center max-w-lg px-4">{transitionMessage}</h2>
             <button onClick={confirmTransition} className="px-8 py-3 border border-white rounded-full hover:bg-white hover:text-black transition duration-300">
               Continue &rarr;
             </button>
@@ -179,7 +178,6 @@ export function TopicFlow() {
       case 'summary':
         return (
           <div className="min-h-screen flex flex-col items-center h-full bg-zinc-900 text-zinc-100 overflow-y-auto py-10">
-            
             {/* Header Section */}
             <div className="text-center mb-12">
               <div className="inline-block p-3 rounded-full bg-green-500/10 mb-4 border border-green-500/20">
@@ -222,12 +220,10 @@ export function TopicFlow() {
                 </div>
               </div>
 
-              {/* Time Breakdown (Full Width) */}
+              {/* Time Breakdown */}
               <div className="col-span-1 md:col-span-2 bg-zinc-800/50 border border-zinc-700/50 p-8 rounded-2xl">
                  <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-6">Session Breakdown</h3>
                  <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                    
-                    {/* Story Stat */}
                     <div className="flex flex-col items-center w-full">
                         <div className="w-full h-2 bg-zinc-700 rounded-full mb-2 overflow-hidden">
                             <div className="h-full bg-green-500/40 w-full"></div>
@@ -235,8 +231,6 @@ export function TopicFlow() {
                         <span className="text-zinc-500 text-sm mb-1">Interactive Story</span>
                         <span className="text-xl font-medium text-green-100">{formatTime(tracking.timeSpent.story)}</span>
                     </div>
-
-                    {/* Theory Stat */}
                     <div className="flex flex-col items-center w-full">
                         <div className="w-full h-2 bg-zinc-700 rounded-full mb-2 overflow-hidden">
                             <div className="h-full bg-green-500/60 w-full"></div>
@@ -244,8 +238,6 @@ export function TopicFlow() {
                         <span className="text-zinc-500 text-sm mb-1">Theory Slides</span>
                         <span className="text-xl font-medium text-green-100">{formatTime(tracking.timeSpent.theory)}</span>
                     </div>
-
-                    {/* Lab Stat */}
                     <div className="flex flex-col items-center w-full">
                         <div className="w-full h-2 bg-zinc-700 rounded-full mb-2 overflow-hidden">
                             <div className="h-full bg-green-500 w-full"></div>
@@ -299,14 +291,12 @@ export function TopicFlow() {
         {renderContent()}
       </div>
 
-      {/* UI Overlay (Only show if not in summary or transition) */}
-      {currentStage !== 'summary' && currentStage !== 'transition' && (
+      {/* 
+        UI Overlay
+        UPDATED: Condition allows hiding the overlay during 'intro', 'summary', and 'transition'
+      */}
+      {currentStage !== 'summary' && currentStage !== 'transition' && currentStage !== 'intro' && (
         <>
-          {/* 
-            Conditional Top Bar:
-            If user is in Lab AND Lab is finished, show the "Topic Completed" button.
-            Otherwise, show the standard progression steps.
-          */}
           <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
             {currentStage === 'lab' && isLabFinished ? (
                <button 
