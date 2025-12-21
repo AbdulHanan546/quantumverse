@@ -1,188 +1,142 @@
-import React from 'react';
-import { Waves, Volume2, VolumeX, Zap, Music, Mic } from 'lucide-react';
+import React from "react";
+import { 
+  Wind, 
+  AlignJustify, 
+  Gauge, 
+  Activity, 
+  Music, 
+  ArrowRight,
+  Zap
+} from "lucide-react";
+import type { SlideData, SimulationDriver } from "./types";
 
 /* -------------------------------------------------------------------------- */
 /*                         SIMULATION FUNCTIONS                               */
 /* -------------------------------------------------------------------------- */
 
-// 1. Constructive Interference (The "Mega Wave")
-// Shows two waves aligned perfectly (in phase) creating a larger wave
-const runConstructiveSim = (canvas) => {
-    const ctx = canvas.getContext('2d');
-    let offset = 0;
+// 1. Interactive Wave Mixer (The Core Concept)
+const runInterferenceSim = (canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d')!;
+    let t = 0;
     let animId = 0;
+    let mouseX = 0.5;
+
+    const handleMouseMove = (e: MouseEvent) => {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = (e.clientX - rect.left) / rect.width;
+    };
+    canvas.addEventListener('mousemove', handleMouseMove);
 
     const render = () => {
         const { width: w, height: h } = canvas;
         const cy = h / 2;
-        offset += 0.05;
+        t += 0.05;
 
         ctx.clearRect(0, 0, w, h);
 
-        // Draw Center Line
-        ctx.strokeStyle = '#3f3f46';
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
-        ctx.setLineDash([]);
+        // Phase offset determined by mouse (0 to Math.PI * 2)
+        const phaseOffset = mouseX * Math.PI * 2;
 
-        // Wave 1 (Top small)
+        const drawWave = (color: string, offset: number, alpha: number) => {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = alpha;
+            ctx.lineWidth = 2;
+            for (let x = 0; x < w; x++) {
+                const y = cy + Math.sin(x * 0.02 + t + offset) * 40;
+                if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        };
+
+        // 1. Wave A (Static Phase)
+        drawWave('#60a5fa', 0, 0.5); 
+        // 2. Wave B (Mouse Controlled Phase)
+        drawWave('#fbbf24', phaseOffset, 0.5);
+
+        // 3. The Result (Sum of A and B)
         ctx.beginPath();
-        ctx.strokeStyle = '#60a5fa'; // Blue
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#4ade80';
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 4;
         for (let x = 0; x < w; x++) {
-            const y = (cy - 100) + Math.sin((x * 0.02) - offset) * 30;
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            const y1 = Math.sin(x * 0.02 + t) * 40;
+            const y2 = Math.sin(x * 0.02 + t + phaseOffset) * 40;
+            const yResult = cy + (y1 + y2);
+            if (x === 0) ctx.moveTo(x, yResult); else ctx.lineTo(x, yResult);
         }
         ctx.stroke();
 
-        // Wave 2 (Bottom small - identical)
-        ctx.beginPath();
-        ctx.strokeStyle = '#60a5fa'; // Blue
-        ctx.lineWidth = 2;
-        for (let x = 0; x < w; x++) {
-            const y = (cy + 100) + Math.sin((x * 0.02) - offset) * 30;
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Plus Sign
+        ctx.globalAlpha = 1;
         ctx.fillStyle = '#fff';
-        ctx.font = '24px sans-serif';
-        ctx.fillText("+", 50, cy);
-
-        // Result Wave (Middle Big)
-        ctx.beginPath();
-        ctx.strokeStyle = '#4ade80'; // Green (Result)
-        ctx.lineWidth = 5;
-        for (let x = 0; x < w; x++) {
-            // Adding amplitudes (30 + 30 = 60)
-            const y = cy + Math.sin((x * 0.02) - offset) * 60;
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
+        ctx.font = '14px sans-serif';
+        ctx.fillText("Blue & Yellow = MEETING WAVES", 20, 30);
         ctx.fillStyle = '#4ade80';
-        ctx.font = '16px sans-serif';
-        ctx.fillText("Result: 2x Bigger!", w - 150, cy - 80);
+        ctx.fillText("GREEN = THE COMBINED RESULT", 20, 50);
+        ctx.fillStyle = '#71717a';
+        ctx.fillText("Slide mouse to align waves!", 20, h - 20);
 
         animId = requestAnimationFrame(render);
     };
     render();
-    return () => cancelAnimationFrame(animId);
-};
-
-// 2. Destructive Interference (The "Silencer")
-// Shows two waves opposite (out of phase) canceling out
-const runDestructiveSim = (canvas) => {
-    const ctx = canvas.getContext('2d');
-    let offset = 0;
-    let animId = 0;
-
-    const render = () => {
-        const { width: w, height: h } = canvas;
-        const cy = h / 2;
-        offset += 0.05;
-
-        ctx.clearRect(0, 0, w, h);
-
-        // Draw Center Line
-        ctx.strokeStyle = '#3f3f46';
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Wave 1 (Top small)
-        ctx.beginPath();
-        ctx.strokeStyle = '#60a5fa'; // Blue
-        ctx.lineWidth = 2;
-        for (let x = 0; x < w; x++) {
-            const y = (cy - 100) + Math.sin((x * 0.02) - offset) * 30;
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Wave 2 (Bottom small - OPPOSITE)
-        // We add Math.PI to shift it 180 degrees
-        ctx.beginPath();
-        ctx.strokeStyle = '#f87171'; // Red
-        ctx.lineWidth = 2;
-        for (let x = 0; x < w; x++) {
-            const y = (cy + 100) + Math.sin((x * 0.02) - offset + Math.PI) * 30;
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Plus Sign
-        ctx.fillStyle = '#fff';
-        ctx.font = '24px sans-serif';
-        ctx.fillText("+", 50, cy);
-
-        // Result Wave (Middle Flat)
-        ctx.beginPath();
-        ctx.strokeStyle = '#fbbf24'; // Yellow
-        ctx.lineWidth = 5;
-        for (let x = 0; x < w; x++) {
-            // sin(a) + sin(a + PI) = 0
-            const val1 = Math.sin((x * 0.02) - offset) * 30;
-            const val2 = Math.sin((x * 0.02) - offset + Math.PI) * 30;
-            const y = cy + (val1 + val2);
-            if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = '16px sans-serif';
-        ctx.fillText("Result: Zero (Silence)", w - 180, cy - 20);
-
-        animId = requestAnimationFrame(render);
+    return () => {
+        cancelAnimationFrame(animId);
+        canvas.removeEventListener('mousemove', handleMouseMove);
     };
-    render();
-    return () => cancelAnimationFrame(animId);
 };
 
-// 3. Pulse Collision
-// Shows two pulses moving towards each other and passing through
-const runPulseSim = (canvas) => {
-    const ctx = canvas.getContext('2d');
+// 2. Headphone Cancellation Sim (Real world Destructive)
+const runHeadphoneSim = (canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d')!;
     let t = 0;
     let animId = 0;
 
     const render = () => {
         const { width: w, height: h } = canvas;
         const cy = h / 2;
-        t += 2;
-        if (t > w + 200) t = 0; // Reset loop
+        t += 0.1;
 
         ctx.clearRect(0, 0, w, h);
 
-        // Axis
-        ctx.strokeStyle = '#3f3f46';
-        ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
+        const noiseY = (x: number) => Math.sin(x * 0.05 + t) * 30;
+        const antiNoiseY = (x: number) => Math.sin(x * 0.05 + t + Math.PI) * 30;
 
-        // Pulse 1 moving Right
-        const x1 = t;
-        // Pulse 2 moving Left
-        const x2 = w - t;
-
+        // Outside Noise (Red)
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = 4;
-        
-        for (let x = 0; x < w; x++) {
-            // Gaussian pulse formula: e^(-(x-center)^2 / spread)
-            const y1 = 80 * Math.exp(-Math.pow(x - x1, 2) / 3000);
-            const y2 = 80 * Math.exp(-Math.pow(x - x2, 2) / 3000);
-            
-            // Superposition: Add them together!
-            const yTotal = cy - (y1 + y2);
-            
-            if (x === 0) ctx.moveTo(x, yTotal); else ctx.lineTo(x, yTotal);
+        for(let x=0; x < w/2 - 50; x++) {
+            const y = cy + noiseY(x);
+            if(x===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.stroke();
 
-        ctx.fillStyle = '#aaa';
-        ctx.font = '14px sans-serif';
-        ctx.fillText("Watch them merge and pass through", 20, 30);
+        // The Headphone Barrier
+        ctx.fillStyle = '#27272a';
+        ctx.roundRect(w/2 - 50, cy - 80, 100, 160, 20);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText("HEADPHONE", w/2 - 35, cy + 100);
+
+        // Anti-Noise (Yellow) - Generated inside headphone
+        ctx.strokeStyle = '#fbbf24';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(w/2, cy);
+        ctx.lineTo(w/2 + 40, cy + antiNoiseY(w/2 + 40));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Result inside Ear (Flatline)
+        ctx.strokeStyle = '#4ade80';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(w/2 + 50, cy);
+        ctx.lineTo(w - 20, cy);
+        ctx.stroke();
+
+        ctx.fillStyle = '#4ade80';
+        ctx.fillText("SILENCE", w - 80, cy - 10);
 
         animId = requestAnimationFrame(render);
     };
@@ -194,137 +148,133 @@ const runPulseSim = (canvas) => {
 /*                             DATA DEFINITION                                */
 /* -------------------------------------------------------------------------- */
 
-export const SLIDES_8 = [
+export const SLIDES_8: SlideData[] = [
     {
         id: 1,
         type: "intro",
-        title: "Wave Interference",
-        subtitle: "What happens when two waves crash into each other?",
-        icon: <Waves size={80} className="text-blue-400" />,
-        meta: "Physics • Waves"
+        title: "Wave Superpowers",
+        subtitle: "How waves build up and break down when they meet.",
+        icon: <Zap size={80} className="text-yellow-400" />,
+        meta: "Wave Physics"
     },
     {
         id: 2,
-        type: "concept-list",
-        title: "Imagine a Pond...",
-        context: "You throw two rocks into a calm pond at the same time. Ripples spread out from both rocks. Eventually, the ripples meet.",
-        items: [
-            "Do they bounce off each other?",
-            "Do they crash and stop?",
-            "No! They pass right through each other.",
-            "But while they overlap, they mix."
-        ]
+        type: "quote",
+        text: "Waves do not knock each other over like people do. They simply pass through each other, adding their heights as they go.",
+        author: "The Addition Rule"
     },
     {
         id: 3,
-        type: "quote",
-        text: "Interference is just a fancy word for 'adding things up'.",
-        author: "Physics Simplified"
-    },
-    {
-        id: 4,
         type: "concept-split",
-        title: "The Golden Rule",
-        leftContent: "When two waves are in the same place at the same time, we just ADD their heights together. This is called the 'Principle of Superposition' (but let's just call it Adding Waves).",
+        title: "The 'Meeting' Rule",
+        leftContent: "When two waves meet at the same spot, they don't bounce off each other. They share the space! Think of it like two ghosts walking through each other.",
         rightPoints: [
-            "Height A + Height B = Total Height",
-            "Sometimes they help each other (Constructive)",
-            "Sometimes they fight each other (Destructive)"
+            "Waves occupy the same space",
+            "They help or hurt each other",
+            "Then they move on like nothing happened"
         ]
     },
     {
-        id: 5,
+        id: 4,
         type: "simulation",
-        title: "Teamwork: Constructive Interference",
-        description: "When a Peak meets a Peak, they join forces to make a MEGA peak.",
-        run: runConstructiveSim
+        title: "The Wave Mixer",
+        description: "Align the yellow and blue waves. When they match perfectly, they build a giant green wave. When they clash, they vanish!",
+        run: runInterferenceSim
+    },
+    {
+        id: 5,
+        type: "concept-list",
+        title: "Constructive (The Builder)",
+        context: "This is when waves are 'In Sync'. They work together to get bigger.",
+        items: [
+            "Peak meets Peak (High + High = Super High)",
+            "Valley meets Valley (Low + Low = Super Low)",
+            "Result: A much stronger, louder, or brighter wave."
+        ]
     },
     {
         id: 6,
         type: "process",
-        title: "How Constructive Works",
+        title: "Building a Giant Wave",
         steps: [
-            { label: "Step 1", desc: "Wave A goes UP." },
-            { label: "Step 2", desc: "Wave B goes UP at the exact same time." },
-            { label: "Result", desc: "The water (or air) is pushed UP twice as hard." },
-            { label: "Analogy", desc: "Like two people pushing a swing at the same time." }
+            { label: "Approach", desc: "Two small ripples move toward each other." },
+            { label: "Overlap", desc: "Their peaks land on the exact same spot at the same time." },
+            { label: "Addition", desc: "For a split second, they add their strengths together." },
+            { label: "Giant Pulse", desc: "A single wave twice as tall appears!" }
         ]
     },
     {
         id: 7,
-        type: "simulation",
-        title: " canceling: Destructive Interference",
-        description: "When a Peak meets a Valley (Trough), they cancel each other out.",
-        run: runDestructiveSim
+        type: "concept-list",
+        title: "Destructive (The Destroyer)",
+        context: "This is when waves are 'Out of Sync'. They fight each other.",
+        items: [
+            "Peak meets Valley (Up + Down = Zero)",
+            "They 'cancel' each other out.",
+            "Result: Silence, darkness, or a flat surface."
+        ]
     },
     {
         id: 8,
         type: "comparison",
-        title: "The Two Outcomes",
+        title: "The Tug-of-War",
         leftTitle: "Constructive",
-        leftPoints: ["Peak + Peak", "Gets Louder / Brighter", "Waves are 'In Phase'"],
+        leftPoints: ["Waves 'Team Up'", "Peak + Peak", "Result is LOUDER / Brighter", "Example: Surround Sound"],
         rightTitle: "Destructive",
-        rightPoints: ["Peak + Valley", "Gets Quieter / Darker", "Waves are 'Out of Phase'"]
+        rightPoints: ["Waves 'Cancel Out'", "Peak + Valley", "Result is QUIET / Dark", "Example: Noise-Canceling"]
     },
     {
         id: 9,
-        type: "quiz",
-        question: "If a wave with height +5 meets a wave with height -5, what is the result?",
-        options: ["+10 (Huge wave)", "0 (Flat line)", "-10 (Deep hole)", "+5 (No change)"],
-        correctIndex: 1,
-        explanation: "Simple math! +5 added to -5 equals 0. They completely destroy each other for that moment."
+        type: "simulation",
+        title: "Noise-Canceling Magic",
+        description: "How your headphones work: They listen to outside noise (Red) and create a 'Mirror Wave' (Yellow) to kill it.",
+        run: runHeadphoneSim
     },
     {
         id: 10,
-        type: "concept-split",
-        title: "Real World Magic: Noise Canceling",
-        leftContent: "How do those expensive headphones silence the world? They use Destructive Interference! They listen to the noise outside, and create an 'Anti-Noise' wave inside.",
-        rightPoints: [
-            "Mic hears airplane engine noise",
-            "Chip creates an OPPOSITE wave",
-            "Noise + Anti-Noise = Silence",
-            "Your ears hear nothing"
+        type: "equation",
+        latex: "1 + (-1) = 0",
+        description: "This is the 'Math' of destructive interference. If one wave pulls up (+1) and the other pulls down (-1), the net result is zero.",
+        variables: [
+            { symbol: "Peak", meaning: "The +1 part of the wave" },
+            { symbol: "Valley", meaning: "The -1 part of the wave" }
         ]
     },
     {
         id: 11,
-        type: "equation",
-        latex: "y_{total} = y_1 + y_2",
-        description: "It looks like math, but it just means: The result is the sum of the parts. If one is positive and one is negative, the sum is zero.",
-        variables: [
-            { symbol: "y", meaning: "Height of the wave" },
-            { symbol: "+", meaning: "Just adding them up" }
-        ]
+        type: "quiz",
+        question: "You have two speakers playing the same song. If you stand in a spot where a Peak from Speaker A meets a Valley from Speaker B, what do you hear?",
+        options: [
+            "The song gets twice as loud.", 
+            "Nothing (or very quiet sound).", 
+            "The song plays in reverse.", 
+            "The speakers explode."
+        ],
+        correctIndex: 1,
+        explanation: "Since a Peak (+1) and a Valley (-1) meet, they cancel out! This is destructive interference."
     },
     {
         id: 12,
-        type: "simulation",
-        title: "Passing Through",
-        description: "Watch two pulses collide. They mix for a moment, then continue as if nothing happened.",
-        run: runPulseSim
+        type: "true-false",
+        statement: "In destructive interference, the energy of the waves is destroyed forever.",
+        isTrue: false,
+        explanation: "Energy can't be destroyed! The waves just cancel each other in that specific spot. They will continue moving and reappear on the other side."
     },
     {
         id: 13,
-        type: "true-false",
-        statement: "After two waves interfere and cancel out, they are destroyed forever.",
-        isTrue: false,
-        explanation: "False! They only cancel while they overlap. Once they pass each other, they continue moving exactly as they were before."
-    },
-    {
-        id: 14,
         type: "summary",
-        title: "Recap: Wave Interference",
+        title: "Interference Recap",
         recap: [
-            "Interference = Waves mixing together",
-            "Constructive = Up + Up = BIGGER (Louder/Brighter)",
-            "Destructive = Up + Down = ZERO (Silence/Darkness)",
-            "This is how noise-canceling headphones work"
+            "Waves can overlap and share the same space.",
+            "Constructive: Waves add up to get bigger (In Sync).",
+            "Destructive: Waves subtract to get smaller (Out of Sync).",
+            "This is how tech like noise-canceling headphones works."
         ]
     },
     {
-        id: 15,
+        id: 14,
         type: "outro",
-        title: "Topic Mastered!",
-        text: "You now understand how waves can add up to create power, or cancel out to create silence."
+        title: "Wave Mastery!",
+        text: "Next time you use your headphones, remember: there's a tiny 'Wave War' happening inside your ears to keep things quiet!"
     }
 ];
