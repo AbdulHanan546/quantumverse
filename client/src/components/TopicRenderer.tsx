@@ -399,7 +399,7 @@ const SimulationView = ({ slide }: { slide: SimSlide }) => {
     const cleanup = slide.run(canvas);
 
     return () => {
-      cleanup();
+      // cleanup();
       window.removeEventListener('resize', resize);
     };
   }, [slide]);

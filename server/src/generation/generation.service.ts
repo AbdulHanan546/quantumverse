@@ -1,616 +1,474 @@
-import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
-import { GenerateSlidesDto } from './dto/generate-slides.dto';
+﻿import {
+    Injectable,
+    InternalServerErrorException,
+    BadRequestException
+} from '@nestjs/common'
 
-// ============= TYPE DEFINITIONS =============
+// GenerationService:  integrates with Google Gemini via REST, parses and sanitizes output
 
-export type AllowedImage = "/images/4.png" | "/images/5.png" | "/images/6.png" | "/images/7.png";
+export type SlideType = |
+    'intro' |
+    'quote' |
+    'concept-list' |
+    'concept-split' |
+    'comparison' |
+    'process' |
+    'equation' |
+    'quiz' |
+    'true-false' |
+    'summary' |
+    'outro' |
+    'simulation'
 
-export type CharacterEmotion = "curious" | "thinking" | "happy" | "excited" | "neutral";
-export type Orientation = "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
-
-export type ComponentType =
-  | "Heading"
-  | "PointToPonder"
-  | "Story"
-  | "Diagram"
-  | "FlipCardSet"
-  | "Slice"
-  | "StepFlow"
-  | "Analogy"
-  | "ComparisonCards"
-  | "ZoomReveal"
-  | "ShortAnimation"
-  | "ConceptMap";
-
-export interface HeadingProps {
-  title: string;
-  description: string;
-  background: AllowedImage;
+export interface BaseSlide {
+    id: number;type: SlideType;title ? : string
 }
-
-export interface PointToPonderProps {
-  point: string;
-  character: { name: string; image: AllowedImage };
-  characterEmotion: CharacterEmotion;
+export interface IntroSlide extends BaseSlide {
+    type: 'intro';subtitle: string;meta ? : string
 }
-
-export interface StoryScene {
-  dialogue: string;
-  character: { name: string; image: AllowedImage };
-  background: AllowedImage;
-  emotion: CharacterEmotion;
-  orientation: Orientation;
+export interface QuoteSlide extends BaseSlide {
+    type: 'quote';text: string;author ? : string
 }
-
-export interface StoryProps {
-  scenes: StoryScene[];
+export interface ConceptListSlide extends BaseSlide {
+    type: 'concept-list';title: string;items: string[];context ? : string
 }
-
-export interface DiagramProps {
-  title: string;
-  illustration: AllowedImage;
-  text: string;
+export interface ConceptSplitSlide extends BaseSlide {
+    type: 'concept-split';title: string;leftContent: string;rightPoints: string[]
 }
-
-export interface FlipCard {
-  front: string;
-  back: string;
+export interface ComparisonSlide extends BaseSlide {
+    type: 'comparison';title: string;leftTitle ? : string;leftPoints: string[];rightTitle ? : string;rightPoints: string[]
 }
-
-export interface FlipCardSetProps {
-  title: string;
-  cards: FlipCard[];
+export interface ProcessSlide extends BaseSlide {
+    type: 'process';title: string;steps: {
+        label: string;desc: string
+    } []
 }
-
-export interface SliceProps {
-  title: string;
-  content: string;
+export interface EquationSlide extends BaseSlide {
+    type: 'equation';title ? : string;latex: string;description ? : string;variables ? : {
+        symbol: string;meaning: string
+    } []
 }
-
-export interface StepFlowProps {
-  title: string;
-  steps: string[];
+export interface QuizSlide extends BaseSlide {
+    type: 'quiz';question: string;options: string[];correctIndex: number;explanation ? : string
 }
-
-export interface AnalogyProps {
-  analogy: string;
-  point: string;
+export interface TrueFalseSlide extends BaseSlide {
+    type: 'true-false';statement: string;isTrue: boolean;explanation ? : string
 }
-
-export interface ComparisonSide {
-  label: string;
-  image: AllowedImage;
-  description: string;
+export interface SummarySlide extends BaseSlide {
+    type: 'summary';title ? : string;recap: string[]
 }
-
-export interface ComparisonCardsProps {
-  title: string;
-  left: ComparisonSide;
-  right: ComparisonSide;
+export interface OutroSlide extends BaseSlide {
+    type: 'outro';title ? : string;text: string
 }
-
-export interface ZoomLabel {
-  text: string;
-  x: number; // 0-100
-  y: number; // 0-100
+export interface SimulationSlide extends BaseSlide {
+    type: 'simulation';
+    title: string;
+    description: string;
+    simulationCode?:  string; // The function source as a string
 }
-
-export interface ZoomRevealProps {
-  title: string;
-  image: AllowedImage;
-  labels: ZoomLabel[];
-}
-
-export interface ShortAnimationProps {
-  title: string;
-  gif: AllowedImage;
-  description: string;
-}
-
-export interface ConceptMapProps {
-  title: string;
-  center: string;
-  links: string[];
-}
-
-export interface SlideComponent<T = any> {
-  type: ComponentType;
-  props: T;
-}
+export type SlideData = IntroSlide | QuoteSlide | ConceptListSlide | ConceptSplitSlide | ComparisonSlide | ProcessSlide | EquationSlide | QuizSlide | TrueFalseSlide | SummarySlide | OutroSlide | SimulationSlide
 
 export interface GeminiOptions {
-  model?: string;
-  temperature?: number;
-  maxOutputTokens?: number;
+    model ? : string;
+    temperature ? : number
 }
 
-// ============= UTILITY FUNCTIONS =============
-
-function sanitizeString(s: any, fallback = ""): string {
-  if (typeof s === "string") return s.trim();
-  if (s == null) return fallback;
-  try {
-    return String(s).trim();
-  } catch {
-    return fallback;
-  }
-}
-
-function sanitizeArray<T>(a: any, fallback: T[] = []): T[] {
-  if (Array.isArray(a)) return a as T[];
-  return fallback;
-}
-
-function isAllowedImage(img: string): img is AllowedImage {
-  const allowedImages: AllowedImage[] = ["/images/4.png", "/images/5.png", "/images/6.png", "/images/7.png"];
-  return allowedImages.includes(img as AllowedImage);
-}
-
-function coerceAllowedImage(img: string): AllowedImage {
-  if (isAllowedImage(img)) return img as AllowedImage;
-  return "/images/4.png";
-}
-
-function coerceEmotion(e: any): CharacterEmotion {
-  const allowed: CharacterEmotion[] = ["curious", "thinking", "happy", "excited", "neutral"];
-  return allowed.includes(e) ? e : "neutral";
-}
-
-function coerceOrientation(o: any): Orientation {
-  const allowed: Orientation[] = ["bottom-right", "bottom-left", "top-right", "top-left", "center"];
-  return allowed.includes(o) ? o : "bottom-right";
-}
-
-function clamp01To100(n: any): number {
-  const x = Number(n);
-  if (isNaN(x)) return 50;
-  return Math.max(0, Math.min(100, Math.round(x)));
-}
-
-// ============= SANITIZATION FUNCTIONS =============
-
-function sanitizeHeadingProps(p: any): HeadingProps {
-  return {
-    title: sanitizeString(p?.title, "Untitled"),
-    description: sanitizeString(p?.description, ""),
-    background: coerceAllowedImage(p?.background)
-  };
-}
-
-function sanitizePointToPonderProps(p: any): PointToPonderProps {
-  return {
-    point: sanitizeString(p?.point, "Consider this..."),
-    character: {
-      name: sanitizeString(p?.character?.name, "Guide"),
-      image: coerceAllowedImage(p?.character?.image || "/images/6.png")
-    },
-    characterEmotion: coerceEmotion(p?.characterEmotion || "curious")
-  };
-}
-
-function sanitizeStoryProps(p: any): StoryProps {
-  const scenes = sanitizeArray<any>(p?.scenes).map((s: any) => ({
-    dialogue: sanitizeString(s?.dialogue, ""),
-    character: {
-      name: sanitizeString(s?.character?.name, "Guide"),
-      image: coerceAllowedImage(s?.character?.image || "/images/6.png")
-    },
-    background: coerceAllowedImage(s?.background || "/images/5.png"),
-    emotion: coerceEmotion(s?.emotion || "neutral"),
-    orientation: coerceOrientation(s?.orientation || "bottom-right")
-  }));
-  if (scenes.length === 0) {
-    scenes.push({
-      dialogue: "Let's explore this topic.",
-      character: { name: "Guide", image: "/images/6.png" },
-      background: "/images/5.png",
-      emotion: "curious",
-      orientation: "bottom-right"
-    });
-  }
-  return { scenes };
-}
-
-function sanitizeDiagramProps(p: any): DiagramProps {
-  return {
-    title: sanitizeString(p?.title, "Diagram"),
-    illustration: coerceAllowedImage(p?.illustration || "/images/4.png"),
-    text: sanitizeString(p?.text, "")
-  };
-}
-
-function sanitizeFlipCardSetProps(p: any): FlipCardSetProps {
-  const cards = sanitizeArray<any>(p?.cards).map((c: any) => ({
-    front: sanitizeString(c?.front, ""),
-    back: sanitizeString(c?.back, "")
-  })).filter(c => c.front || c.back);
-  return {
-    title: sanitizeString(p?.title, "Knowledge Cards"),
-    cards: cards.length ? cards : [{ front: "Key Term", back: "Definition" }]
-  };
-}
-
-function sanitizeSliceProps(p: any): SliceProps {
-  return {
-    title: sanitizeString(p?.title, "Overview"),
-    content: sanitizeString(p?.content, "")
-  };
-}
-
-function sanitizeStepFlowProps(p: any): StepFlowProps {
-  const steps = sanitizeArray<any>(p?.steps).map((s: any) => sanitizeString(s, "")).filter(Boolean);
-  return {
-    title: sanitizeString(p?.title, "Steps"),
-    steps: steps.length ? steps : ["Step 1", "Step 2", "Step 3"]
-  };
-}
-
-function sanitizeAnalogyProps(p: any): AnalogyProps {
-  return {
-    analogy: sanitizeString(p?.analogy, ""),
-    point: sanitizeString(p?.point, "")
-  };
-}
-
-function sanitizeComparisonCardsProps(p: any): ComparisonCardsProps {
-  return {
-    title: sanitizeString(p?.title, "Comparison"),
-    left: {
-      label: sanitizeString(p?.left?.label, "Left"),
-      image: coerceAllowedImage(p?.left?.image || "/images/4.png"),
-      description: sanitizeString(p?.left?.description, "")
-    },
-    right: {
-      label: sanitizeString(p?.right?.label, "Right"),
-      image: coerceAllowedImage(p?.right?.image || "/images/5.png"),
-      description: sanitizeString(p?.right?.description, "")
+function safeString(v: any, fallback = '') {
+    if (typeof v === 'string') return v.trim();
+    if (v == null) return fallback;
+    try {
+        return String(v).trim()
+    } catch {
+        return fallback
     }
-  };
 }
 
-function sanitizeZoomRevealProps(p: any): ZoomRevealProps {
-  const labels = sanitizeArray<any>(p?.labels).map((l: any) => ({
-    text: sanitizeString(l?.text, ""),
-    x: clamp01To100(l?.x),
-    y: clamp01To100(l?.y)
-  })).filter(l => l.text);
-  return {
-    title: sanitizeString(p?.title, "Zoom Reveal"),
-    image: coerceAllowedImage(p?.image || "/images/4.png"),
-    labels
-  };
+function safeArray < T > (v: any, fallback: T[] = []) {
+    return Array.isArray(v) ? v : fallback
 }
 
-function sanitizeShortAnimationProps(p: any): ShortAnimationProps {
-  return {
-    title: sanitizeString(p?.title, "Short Animation"),
-    gif: coerceAllowedImage(p?.gif || "/images/5.png"),
-    description: sanitizeString(p?.description, "")
-  };
+function sanitizeIntro(s: any, id: number): IntroSlide | null {
+    const subtitle = safeString(s?. subtitle);
+    if (! subtitle) return null;
+    return {
+        id,
+        type: 'intro',
+        title: safeString(s?.title, 'Untitled'),
+        subtitle,
+        meta: safeString(s?.meta, '')
+    }
 }
 
-function sanitizeConceptMapProps(p: any): ConceptMapProps {
-  const links = sanitizeArray<any>(p?.links).map((s: any) => sanitizeString(s, "")).filter(Boolean);
-  return {
-    title: sanitizeString(p?.title, "Concept Map"),
-    center: sanitizeString(p?.center, "Center"),
-    links
-  };
+function sanitizeQuote(s: any, id: number): QuoteSlide | null {
+    const text = safeString(s?.text);
+    if (!text) return null;
+    return {
+        id,
+        type: 'quote',
+        text,
+        author: safeString(s?.author, '')
+    }
 }
 
-function sanitizeComponent(c: any): SlideComponent | null {
-  const allowedTypes: ComponentType[] = [
-    "Heading",
-    "PointToPonder",
-    "Story",
-    "Diagram",
-    "FlipCardSet",
-    "Slice",
-    "StepFlow",
-    "Analogy",
-    "ComparisonCards",
-    "ZoomReveal",
-    "ShortAnimation",
-    "ConceptMap",
-  ];
-  
-  const type = c?.type;
-  if (!allowedTypes.includes(type)) return null;
+function sanitizeConceptList(s: any, id: number): ConceptListSlide | null {
+    const title = safeString(s?.title);
+    const items = safeArray(s?.items).map((it: any) => safeString(it)).filter(Boolean);
+    if (!title || items.length === 0) return null;
+    return {
+        id,
+        type: 'concept-list',
+        title,
+        items,
+        context: safeString(s?.context, '')
+    }
+}
 
-  let propsSanitized: any;
-  try {
+function sanitizeConceptSplit(s: any, id: number): ConceptSplitSlide | null {
+    const title = safeString(s?.title);
+    const left = safeString(s?.leftContent);
+    const right = safeArray(s?.rightPoints).map((r: any) => safeString(r)).filter(Boolean);
+    if (!title || ! left) return null;
+    return {
+        id,
+        type: 'concept-split',
+        title,
+        leftContent: left,
+        rightPoints: right
+    }
+}
+
+function sanitizeComparison(s: any, id:  number): ComparisonSlide | null {
+    const title = safeString(s?.title);
+    const leftPoints = safeArray(s?.leftPoints).map((p: any) => safeString(p)).filter(Boolean);
+    const rightPoints = safeArray(s?.rightPoints).map((p: any) => safeString(p)).filter(Boolean);
+    if (!title || (! leftPoints.length && !rightPoints.length)) return null;
+    return {
+        id,
+        type: 'comparison',
+        title,
+        leftTitle: safeString(s?.leftTitle, ''),
+        leftPoints,
+        rightTitle: safeString(s?.rightTitle, ''),
+        rightPoints
+    }
+}
+
+function sanitizeProcess(s: any, id: number): ProcessSlide | null {
+    const title = safeString(s?.title);
+    const steps = safeArray(s?.steps).map((st: any, i: number) => ({
+        label: safeString(st?.label, `Step ${i + 1}`),
+        desc: safeString(st?.desc, '')
+    })).filter(Boolean);
+    if (!title || steps.length === 0) return null;
+    return {
+        id,
+        type: 'process',
+        title,
+        steps
+    }
+}
+
+function sanitizeEquation(s: any, id:  number): EquationSlide | null {
+    const latex = safeString(s?.latex);
+    if (!latex) return null;
+    const variables = safeArray(s?.variables).map((v: any) => ({
+        symbol: safeString(v?.symbol),
+        meaning: safeString(v?.meaning)
+    })).filter(v => v.symbol);
+    return {
+        id,
+        type: 'equation',
+        title: safeString(s?.title, ''),
+        latex,
+        description: safeString(s?.description, ''),
+        variables
+    }
+}
+
+function sanitizeQuiz(s: any, id:  number): QuizSlide | null {
+    const question = safeString(s?.question);
+    const options = safeArray(s?.options).map((o: any) => safeString(o)).filter(Boolean);
+    const correctIndex = Number. isFinite(Number(s?.correctIndex)) ? Number(s?.correctIndex) : -1;
+    if (!question || options.length < 2 || correctIndex < 0 || correctIndex >= options.length) return null;
+    return {
+        id,
+        type: 'quiz',
+        question,
+        options,
+        correctIndex,
+        explanation: safeString(s?.explanation, '')
+    }
+}
+
+function sanitizeTrueFalse(s: any, id: number): TrueFalseSlide | null {
+    const statement = safeString(s?.statement);
+    if (!statement) return null;
+    const isTrue = Boolean(s?.isTrue);
+    return {
+        id,
+        type: 'true-false',
+        statement,
+        isTrue,
+        explanation: safeString(s?.explanation, '')
+    }
+}
+
+function sanitizeSummary(s: any, id: number): SummarySlide | null {
+    const recap = safeArray(s?.recap).map((r: any) => safeString(r)).filter(Boolean);
+    if (recap.length === 0) return null;
+    return {
+        id,
+        type: 'summary',
+        title: safeString(s?.title, 'Summary'),
+        recap
+    }
+}
+
+function sanitizeOutro(s: any, id:  number): OutroSlide | null {
+    return {
+        id,
+        type: 'outro',
+        title: safeString(s?.title, 'Done'),
+        text: safeString(s?.text, 'Great job!')
+    }
+}
+
+function sanitizeSimulation(s: any, id: number): SimulationSlide | null {
+    const title = safeString(s?. title);
+    const description = safeString(s?.description);
+    if (!title || !description) return null;
+    return {
+        id,
+        type: 'simulation',
+        title,
+        description,
+        simulationCode: safeString(s?.simulationCode, '')
+    };
+}
+
+function sanitizeSlideRaw(raw: any, id: number): SlideData | null {
+    const type = safeString(raw?.type) as SlideType;
     switch (type) {
-      case "Heading":
-        propsSanitized = sanitizeHeadingProps(c?.props);
-        break;
-      case "PointToPonder":
-        propsSanitized = sanitizePointToPonderProps(c?.props);
-        break;
-      case "Story":
-        propsSanitized = sanitizeStoryProps(c?.props);
-        break;
-      case "Diagram":
-        propsSanitized = sanitizeDiagramProps(c?.props);
-        break;
-      case "FlipCardSet":
-        propsSanitized = sanitizeFlipCardSetProps(c?.props);
-        break;
-      case "Slice":
-        propsSanitized = sanitizeSliceProps(c?.props);
-        break;
-      case "StepFlow":
-        propsSanitized = sanitizeStepFlowProps(c?.props);
-        break;
-      case "Analogy":
-        propsSanitized = sanitizeAnalogyProps(c?.props);
-        break;
-      case "ComparisonCards":
-        propsSanitized = sanitizeComparisonCardsProps(c?.props);
-        break;
-      case "ZoomReveal":
-        propsSanitized = sanitizeZoomRevealProps(c?.props);
-        break;
-      case "ShortAnimation":
-        propsSanitized = sanitizeShortAnimationProps(c?.props);
-        break;
-      case "ConceptMap":
-        propsSanitized = sanitizeConceptMapProps(c?.props);
-        break;
-      default:
-        return null;
+        case 'intro':
+            return sanitizeIntro(raw, id);
+        case 'quote':
+            return sanitizeQuote(raw, id);
+        case 'concept-list':
+            return sanitizeConceptList(raw, id);
+        case 'concept-split': 
+            return sanitizeConceptSplit(raw, id);
+        case 'comparison':
+            return sanitizeComparison(raw, id);
+        case 'process':
+            return sanitizeProcess(raw, id);
+        case 'equation':
+            return sanitizeEquation(raw, id);
+        case 'quiz':
+            return sanitizeQuiz(raw, id);
+        case 'true-false':
+            return sanitizeTrueFalse(raw, id);
+        case 'summary':
+            return sanitizeSummary(raw, id);
+        case 'outro':
+            return sanitizeOutro(raw, id);
+        case 'simulation':
+            return sanitizeSimulation(raw, id);
+        default:
+            return null
     }
-  } catch {
-    return null;
-  }
-
-  return { type, props: propsSanitized };
 }
 
-function sanitizeSlides(generated: any): SlideComponent[] {
-  const arr = Array.isArray(generated) ? generated : [];
-  const cleaned = arr.map(sanitizeComponent).filter(Boolean) as SlideComponent[];
-
-  if (cleaned.length === 0) {
-    cleaned.push(
-      {
-        type: "Heading",
-        props: {
-          title: "Untitled Topic",
-          description: "Auto-generated overview.",
-          background: "/images/4.png"
+function sanitizeSlides(parsed: any): SlideData[] {
+    const arr = Array.isArray(parsed) ? parsed : [];
+    const cleaned: SlideData[] = [];
+    let id = 1;
+    for (const raw of arr) {
+        const s = sanitizeSlideRaw(raw, id);
+        if (s) {
+            cleaned.push(s);
+            id += 1
         }
-      },
-      {
-        type: "Slice",
-        props: {
-          title: "Overview",
-          content: "1. Key idea.\n2. Explanation.\n3. Summary."
-        }
-      }
-    );
-  }
-
-  return cleaned;
+    }
+    if (cleaned.length === 0) {
+        const fallbackSlides: SlideData[] = [
+            {
+                id: 1,
+                type:  'intro',
+                title:  'Generated Topic',
+                subtitle: 'Quick intro'
+            },
+            {
+                id: 2,
+                type: 'concept-list',
+                title: 'Key Ideas',
+                items: ['Main idea 1', 'Main idea 2', 'Main idea 3']
+            },
+            {
+                id: 3,
+                type:  'summary',
+                title: 'Summary',
+                recap: ['Remember the main idea']
+            }
+        ];
+        cleaned.push(...fallbackSlides);
+    }
+    return cleaned
 }
-
-// ============= GEMINI API INTEGRATION =============
 
 async function callGeminiRaw(fullPrompt: string, geminiApiKey: string, opts: GeminiOptions = {}) {
-  if (!geminiApiKey) throw new Error('GEMINI_API_KEY not set');
-
-  const model = opts.model || 'gemini-2.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-  const body = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: fullPrompt }]
-      }
-    ],
-    generationConfig: {
-      temperature: opts.temperature ?? 0.7,
+    if (!geminiApiKey) throw new Error('GEMINI_API_KEY')
+    const model = opts.model || 'gemini-2.5-flash'
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+    const body = {
+        contents: [{
+            role: 'user',
+            parts: [{
+                text: fullPrompt
+            }]
+        }],
+        generationConfig: {
+            temperature: opts.temperature ?? 0.5
+        }
     }
-  };
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': geminiApiKey
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Gemini API error: ${res.status} ${text}`);
-  }
-
-  const json: any = await res.json();
-  const text =
-    json?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || "").join("") ||
-    json?.candidates?.[0]?.output ||
-    JSON.stringify(json);
-
-  return { raw: json, text };
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': geminiApiKey
+        },
+        body: JSON.stringify(body)
+    })
+    if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Gemini API error: ${res.status} ${t}`)
+    }
+    const json: any = await res.json()
+    const text = json?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || json?.candidates?.[0]?.output || JSON.stringify(json)
+    return {
+        raw: json,
+        text
+    }
 }
 
 function buildSystemPrompt(): string {
-  const allowedImages: AllowedImage[] = ["/images/4.png", "/images/5.png", "/images/6.png", "/images/7.png"];
-  const allowedTypes: ComponentType[] = [
-    "Heading",
-    "PointToPonder",
-    "Story",
-    "Diagram",
-    "FlipCardSet",
-    "Slice",
-    "StepFlow",
-    "Analogy",
-    "ComparisonCards",
-    "ZoomReveal",
-    "ShortAnimation",
-    "ConceptMap",
-  ];
+    return `You are a friendly teacher who uses the Feynman technique to explain hard topics simply to 8th/9th graders.  Use short sentences, simple analogies, and NO jargon. 
 
-  return `
-You are an expert content generator. Generate clear, concise, and informative content based on the user's topic.
-Use a professional and engaging tone. Ensure the content is well-structured and free of errors.
+OUTPUT FORMAT (VERY STRICT):
+- Return ONLY a single valid JavaScript/TypeScript module (no surrounding explanation, no extra text).
+- The module must export one constant whose name is \`SLIDES_<TOPIC_SLUG>\` where \`<TOPIC_SLUG>\` is the topic uppercased with non-alphanumeric replaced by underscore (example: \`Simple harmonic Motion\` -> \`SLIDES_SIMPLE_HARMONIC_MOTION\`).
+- The exported constant must be assigned to an array of slide objects exactly matching the schema below.  Use numeric \`id\` starting at 1.
+- Do NOT include JSX, imports, or React code in the module. Keep it pure JS/TS (functions + export const).
+- Allowed slide \`type\` values and required fields (strict):
+  - \`intro\`: \`{ id, type: 'intro', title, subtitle, meta?  }\`
+  - \`quote\`: \`{ id, type: 'quote', text, author? }\`
+  - \`concept-list\`: \`{ id, type: 'concept-list', title, items:  string[], context? }\`
+  - \`concept-split\`: \`{ id, type: 'concept-split', title, leftContent, rightPoints: string[] }\`
+  - \`comparison\`: \`{ id, type: 'comparison', title, leftTitle, leftPoints: string[], rightTitle, rightPoints:  string[] }\`
+  - \`process\`: \`{ id, type: 'process', title, steps: { label, desc }[] }\`
+  - \`equation\`: \`{ id, type: 'equation', title?, latex, description, variables:  { symbol, meaning }[] }\`
+  - \`quiz\`: \`{ id, type: 'quiz', question, options:  string[], correctIndex:  number, explanation }\`
+  - \`true-false\`: \`{ id, type: 'true-false', statement, isTrue:  boolean, explanation }\`
+  - \`summary\`: \`{ id, type: 'summary', title?, recap: string[] }\`
+  - \`outro\`: \`{ id, type: 'outro', title, text }\`
+- Array length: aim for 8-12 slides. Start with \`intro\`, include 1-2 quick checks (\`quiz\` or \`true-false\`), include \`summary\` and \`outro\` at the end.
+- Language: use very simple short sentences, analogies, step-by-step. Keep each bullet to one short sentence. 
 
-STRICT OUTPUT REQUIREMENTS:
-- Output MUST be a valid JSON array.
-- Each item MUST have shape: { "type": "<ComponentType>", "props": { ... } }.
-- Allowed "type" values ONLY: ${allowedTypes.join(", ")}.
-- Use ONLY images from: ${allowedImages.join(", ")}.
-  - /images/4.png and /images/5.png: presenting
-  - /images/6.png: curious
-  - /images/7.png: thinking
-- Do NOT include any other fields or types.
-- No Markdown in property values except minor inline emphasis allowed in "analogy" and "point".
-- Keep descriptions concise.
-- Ensure each component's props match EXACTLY the schema below.
+SAFETY: Do not generate external network calls or non-deterministic code. 
 
-SCHEMA:
-- Heading:
-  props: { title: string, description: string, background: AllowedImage }
-- PointToPonder:
-  props: { point: string, character: { name: string, image: AllowedImage }, characterEmotion: "curious" | "thinking" | "happy" | "excited" | "neutral" }
-- Story:
-  props: { scenes: Array<{ dialogue: string, character: { name: string, image: AllowedImage }, background: AllowedImage, emotion: CharacterEmotion, orientation: "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center" }> }
-- Diagram:
-  props: { title: string, illustration: AllowedImage, text: string }
-- FlipCardSet:
-  props: { title: string, cards: Array<{ front: string, back: string }> }
-- Slice:
-  props: { title: string, content: string }
-- StepFlow:
-  props: { title: string, steps: string[] }
-- Analogy:
-  props: { analogy: string, point: string }
-- ComparisonCards:
-  props: { title: string, left: { label: string, image: AllowedImage, description: string }, right: { label: string, image: AllowedImage, description: string } }
-- ZoomReveal:
-  props: { title: string, image: AllowedImage, labels: Array<{ text: string, x: number, y: number }> }
-- ShortAnimation:
-  props: { title: string, gif: AllowedImage, description: string }
-- ConceptMap:
-  props: { title: string, center: string, links: string[] }
-
-CONTENT GUIDELINES:
-- Tailor content to the requested topic.
-- Favor short sentences and educational clarity.
-- Provide 10-14 components covering overview, key ideas, examples, steps, and recap.
-`;
+ADDITIONAL OUTPUT (JSON BACKUP):
+- In addition to the JS/TS module, include a JSON-only backup of the slides between the markers \`/* SLIDES_JSON_START */\` and \`/* SLIDES_JSON_END */\` (exact markers). The JSON backup must be a valid JSON array that mirrors the exported slides.`
 }
 
-function buildUserPrompt(topic: string, hints?: string): string {
-  return `Topic: ${topic}
-${hints ? `Hints: ${hints}` : ""}
-Return ONLY the JSON array as specified. No prose or explanations outside JSON.`;
+function buildUserPrompt(topic: string, hints ? : string) {
+    const hintText = hints ? `Hints: ${hints}\n` : ''
+    return `Topic: ${topic}\n${hintText}Return a single JavaScript/TypeScript module as described in the system prompt. The exported constant name must be SLIDES_<TOPIC_SLUG> where <TOPIC_SLUG> is the topic uppercased with non-alphanumeric replaced by underscore.  Use very simple language for 8th/9th graders. `
 }
 
-function buildFullPrompt(topic: string, hints?: string): string {
-  return `${buildSystemPrompt()}\n\n${buildUserPrompt(topic, hints)}`;
+function buildFullPrompt(topic: string, hints ? : string) {
+    return `${buildSystemPrompt()}\n\n${buildUserPrompt(topic, hints)}`
 }
 
-async function generateSlidesForTopic(
-  topic: string,
-  geminiApiKey: string,
-  hints?: string,
-  opts: GeminiOptions = {}
-): Promise<SlideComponent[]> {
-  const prompt = buildFullPrompt(topic, hints);
-  const { text } = await callGeminiRaw(prompt, geminiApiKey, opts);
-
-  let parsed: any;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    const match = text.match(/\[\s*[\s\S]*\]/);
-    if (match) {
-      try {
-        parsed = JSON.parse(match[0]);
-      } catch {
-        parsed = [];
-      }
-    } else {
-      parsed = [];
+async function generateSlidesForTopic(topic: string, geminiApiKey:  string, hints?: string, opts:  GeminiOptions = {}): Promise<SlideData[]> {
+    const full = buildFullPrompt(topic, hints);
+    const { text } = await callGeminiRaw(full, geminiApiKey, opts);
+    
+    let parsed: any[] = [];
+    
+    // Try to extract JSON from the backup markers
+    const jsonStartMarker = '/* SLIDES_JSON_START */';
+    const jsonEndMarker = '/* SLIDES_JSON_END */';
+    const startIdx = text.indexOf(jsonStartMarker);
+    const endIdx = text.indexOf(jsonEndMarker);
+    
+    if (startIdx !== -1 && endIdx !== -1) {
+        const jsonText = text.substring(startIdx + jsonStartMarker.length, endIdx).trim();
+        try {
+            parsed = JSON.parse(jsonText);
+        } catch (e) {
+            console.error('Failed to parse JSON from markers:', e);
+        }
     }
-  }
-
-  const slides = sanitizeSlides(parsed);
-  return slides;
+    
+    // Fallback strategies if marker extraction failed
+    if (! Array.isArray(parsed) || parsed.length === 0) {
+        try {
+            // Try parsing entire response
+            parsed = JSON.parse(text);
+        } catch {
+            // Try to find array pattern
+            const arrayMatch = text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+            if (arrayMatch) {
+                try {
+                    parsed = JSON.parse(arrayMatch[0]);
+                } catch {
+                    // Try to extract from export statement
+                    const exportMatch = text.match(/export\s+const\s+SLIDES_\w+\s*=\s*(\[[\s\S]*?\]);?\s*(\? : \/\*|$)/);
+                    if (exportMatch) {
+                        try {
+                            // Remove function references and convert to JSON-compatible format
+                            const cleanedArray = exportMatch[1]
+                                .replace(/run:\s*\w+/g, 'run: null') // Replace function refs with null
+                                .replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+                            parsed = eval(`(${cleanedArray})`); // Use eval carefully in controlled environment
+                        } catch {
+                            parsed = [];
+                        }
+                    }
+                }
+            }
+        }
+    }
+        
+    const slides = sanitizeSlides(parsed);
+    console.log(`Generated ${slides.length} slides for topic "${topic}"`);
+    return slides;
 }
-
-// ============= SERVICE =============
 
 @Injectable()
 export class GenerationService {
-  private readonly geminiApiKey: string;
-
-  constructor() {
-    this.geminiApiKey = process.env.GEMINI_API_KEY || '';
-  }
-
-  async generateSlides(
-    userId: number,
-    prompt: string,
-    hints?: string
-  ) {
-    try {
-      // Validate input
-      if (!prompt || prompt.trim().length < 3) {
-        throw new BadRequestException('Prompt must be at least 3 characters');
-      }
-
-      if (!this.geminiApiKey) {
-        throw new InternalServerErrorException(
-          'Generation service is not configured. Please contact support.'
-        );
-      }
-
-      // Call Gemini
-      const slides = await generateSlidesForTopic(
-        prompt,
-        this.geminiApiKey,
-        hints,
-        {
-          model: 'gemini-2.5-flash',
-          temperature: 0.7,
-        }
-      );
-
-      // Return with metadata
-      return {
-        slides,
-        generatedAt: new Date().toISOString(),
-        prompt,
-        userId, // for logging purposes only
-      };
-    } catch (error: any) {
-      // Handle specific errors
-      if (error.message?.includes('GEMINI_API_KEY')) {
-        throw new InternalServerErrorException(
-          'AI generation service is not properly configured.'
-        );
-      }
-
-      // Handle Gemini API errors
-      if (error.message?.includes('Gemini API error')) {
-        throw new InternalServerErrorException(
-          'Failed to generate slides. The AI service encountered an error. Please try again.'
-        );
-      }
-
-      // Re-throw validation errors
-      if (error.getStatus?.() === 400) {
-        throw error;
-      }
-
-      // Generic error
-      throw new InternalServerErrorException(
-        'Failed to generate slides. Please try again.'
-      );
+    private readonly geminiApiKey: string
+    constructor() {
+        this.geminiApiKey = process.env.GEMINI_API_KEY || ''
     }
-  }
+
+    async generateSlides(userId: number, prompt: string, hints ? : string) {
+        try {
+            if (!prompt || prompt.trim().length < 3) throw new BadRequestException('Prompt must be at least 3 characters')
+            if (!this.geminiApiKey) throw new InternalServerErrorException('Generation service is not configured')
+            const slides = await generateSlidesForTopic(prompt, this.geminiApiKey, hints, {
+                model: 'gemini-2.5-flash',
+            })
+            return {
+                slides,
+                generatedAt: new Date().toISOString(),
+                prompt,
+                userId
+            }
+        } catch (err: any) {
+            if (err.message?.includes('GEMINI_API_KEY')) throw new InternalServerErrorException('AI generation service not configured')
+            if (err.message?.includes('Gemini API error')) throw new InternalServerErrorException('AI generation failed')
+            if (err.getStatus?.() === 400) throw err
+            throw new InternalServerErrorException('Failed to generate slides')
+        }
+    }
 }

@@ -6,6 +6,7 @@ import StudentHome from "./pages/student/Home";
 import ChapterTopics from "./pages/student/ChapterTopic";
 import Navbar from "./components/Navbar";
 import TopicRenderer from "./components/TopicRenderer";
+import GeneratedSlidesPage from './pages/GeneratedSlidesPage';
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./index.css";
 import { fetchTopic } from "./services/cms";
@@ -83,6 +84,12 @@ function AppWrapper() {
           element={
             <TopicFlow />
           }
+        />
+
+        {/* Generated slides (from AI) */}
+        <Route
+          path="/topic/generated-slides"
+          element={<GeneratedSlidesPage />}
         />
 
         <Route
