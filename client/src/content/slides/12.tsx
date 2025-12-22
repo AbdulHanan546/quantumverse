@@ -10,7 +10,7 @@ import {
   Expand,
   Combine
 } from "lucide-react";
-import type { SlideData, SimulationDriver } from "./types";
+// import type { SlideData, SimulationDriver } from "./types";
 
 /* -------------------------------------------------------------------------- */
 /*                         SIMULATION FUNCTIONS                               */

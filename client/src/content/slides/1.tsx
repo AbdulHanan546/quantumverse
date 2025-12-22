@@ -7,7 +7,7 @@ import {
   RefreshCcw,
   Smile
 } from "lucide-react";
-import type { SlideData, SimulationDriver } from "./types"; // Assuming types are in a local file or same file
+// import type { SlideData, SimulationDriver } from "./types"; // Assuming types are in a local file or same file
 
 /* -------------------------------------------------------------------------- */
 /*                            SIMULATION LOGIC                                */

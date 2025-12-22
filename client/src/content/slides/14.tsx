@@ -8,7 +8,7 @@ import {
   Radio, 
   Repeat
 } from "lucide-react";
-import type { SlideData, SimulationDriver } from "./types";
+// import type { SlideData, SimulationDriver } from "./types";
 
 /* -------------------------------------------------------------------------- */
 /*                            SIMULATION LOGIC                                */
