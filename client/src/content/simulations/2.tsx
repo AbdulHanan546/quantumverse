@@ -1,71 +1,57 @@
 import React, { useEffect, useRef } from 'react';
-import { FaPlay, FaPause, FaRedo, FaWaveSquare, FaCircleNotch, FaProjectDiagram } from 'react-icons/fa';
 import { type Achievement } from '../../components/SimulationEngine';
 
-// --- 1. Interface ---
-interface SimState {
-  omega: number;
-  phase: number;
-  amplitude: number;
-  isPlaying: boolean;
-  resetTrigger: number;
+// 1. Interface for the "System Status"
+interface PhaseState {
+  omega: number;      // Rotation Speed (Angular Frequency)
+  phase: number;      // Starting position shift
+  amplitude: number;  // Size of the wiggle
+  friction: number;   // To create those cool spirals in phase space
 }
 
-// --- 2. Achievements ---
-const achievements: Achievement<SimState>[] = [
+// 2. Achievements: The "Mission Log"
+const achievements: Achievement<PhaseState>[] = [
   {
-    id: 'frozen-time',
-    title: 'Za Warudo',
-    description: 'Stop time by pausing the simulation.',
-    condition: (s) => !s.isPlaying
+    id: 'speed-demon',
+    title: 'Warp Speed',
+    description: 'Crank the Angular Frequency to the max. The universe is dizzy.',
+    condition: (s) => s.omega >= 9.5
   },
   {
-    id: 'max-energy',
-    title: 'Overdrive',
-    description: 'Crank Angular Frequency (ω) and Amplitude (A) to the max.',
-    condition: (s) => s.omega >= 5.0 && s.amplitude >= 1.5
+    id: 'head-start',
+    title: 'The Head-start',
+    description: 'Set a Phase shift of at least 180 degrees. Starting from the opposite side!',
+    condition: (s) => s.phase >= 180
   },
   {
-    id: 'phase-shift',
-    title: 'The Upside Down',
-    description: 'Set Phase (φ) to roughly π (3.14). Starting from the left.',
-    condition: (s) => s.phase >= 3.1 && s.phase <= 3.2
+    id: 'black-hole',
+    title: 'The Whirlpool',
+    description: 'Turn on Friction while moving. Watch the Phase Space spiral into the abyss.',
+    condition: (s) => s.friction > 0.05 && s.amplitude > 20
   },
   {
-    id: 'slow-motion',
-    title: 'Sloth Mode',
-    description: 'Set Frequency to minimum (< 0.5).',
-    condition: (s) => s.omega < 0.5
+    id: 'big-energy',
+    title: 'Maximum Vibe',
+    description: 'Max out the Amplitude. Huge wiggles only.',
+    condition: (s) => s.amplitude >= 140
   },
   {
-    id: 'perfect-zero',
-    title: 'Null State',
-    description: 'Set Phase to 0 and reset the timer.',
-    condition: (s) => s.phase === 0 && s.resetTrigger > 0
+    id: 'the-freeze',
+    title: 'Absolute Zero',
+    description: 'Set the wiggle size (Amplitude) to 0. Total silence.',
+    condition: (s) => s.amplitude === 0
   }
 ];
 
-// --- 3. Canvas Component (FIXED) ---
-const PhaseSpaceCanvas = ({ values }: { values: SimState }) => {
+// 3. The Visualizer Component
+const PhaseCanvas = ({ values }: { values: PhaseState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const timeRef = useRef<number>(0);
-  const trailRef = useRef<{pos: number, vel: number}[]>([]);
-  
-  // FIX: Store latest values in a ref so the animation loop can read them 
-  // without restarting the useEffect hook.
+  const historyRef = useRef<{x: number, y: number}[]>([]); // For the Phase Space trail
   const valuesRef = useRef(values);
 
-  // Sync the ref whenever props change
-  useEffect(() => {
-    valuesRef.current = values;
-  }, [values]);
-
-  // Handle Reset logic (Independent of the animation loop)
-  useEffect(() => {
-    timeRef.current = 0;
-    trailRef.current = [];
-  }, [values.resetTrigger]);
+  useEffect(() => { valuesRef.current = values; }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -73,289 +59,201 @@ const PhaseSpaceCanvas = ({ values }: { values: SimState }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let width = 0, height = 0;
-
     const animate = () => {
-        // 1. Read latest state from Ref (prevents freezing)
-        const currentVals = valuesRef.current;
+      const parent = canvas.parentElement;
+      if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+      }
 
-        // --- Resize ---
-        const parent = canvas.parentElement;
-        if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
-            width = parent.clientWidth;
-            height = parent.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-        }
+      const { omega, phase, amplitude, friction } = valuesRef.current;
+      const W = canvas.width;
+      const H = canvas.height;
+      
+      // Update Time
+      timeRef.current += 0.02;
 
-        // --- Physics Logic ---
-        if (currentVals.isPlaying) {
-            timeRef.current += 0.05;
-        }
+      // 1. Basic SHM Math
+      // x = A * cos(wt + phi)
+      // v = -A * w * sin(wt + phi)
+      const currentAngle = (omega * timeRef.current) + (phase * Math.PI / 180);
+      const decay = Math.exp(-friction * timeRef.current * 0.5);
+      
+      const x = (amplitude * decay) * Math.cos(currentAngle);
+      const v = -(amplitude * decay) * omega * Math.sin(currentAngle);
 
-        // Use currentVals instead of values
-        const theta = (currentVals.omega * timeRef.current) + currentVals.phase;
-        
-        const scale = Math.min(width, height) / 6;
-        const radius = currentVals.amplitude * scale;
-        
-        const x = radius * Math.cos(theta);
-        // Dampen velocity visually
-        const v = -radius * Math.sin(theta); 
-        
-        // Update Trail
-        if (currentVals.isPlaying) {
-            trailRef.current.push({ pos: x, vel: v });
-            if (trailRef.current.length > 200) trailRef.current.shift();
-        }
+      // Record History for Radar (Phase Space)
+      historyRef.current.push({ x, y: v });
+      if (historyRef.current.length > 500) historyRef.current.shift();
 
-        // --- Drawing ---
-        ctx.fillStyle = '#18181b'; 
-        ctx.fillRect(0, 0, width, height);
-        
-        const cy = height / 2;
-        const cxPhasor = width * 0.16;
-        const cxWaveStart = width * 0.35;
-        const cxWaveEnd = width * 0.65;
-        const cxPhase = width * 0.84;
+      // --- Rendering ---
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(0, 0, W, H);
 
-        // Dividers
-        ctx.strokeStyle = '#27272a';
-        ctx.lineWidth = 1;
+      // UI Layout: Left side = Real World, Right side = Secret Radar
+      const midX = W / 2;
+      
+      // Divider
+      ctx.strokeStyle = '#27272a';
+      ctx.setLineDash([10, 10]);
+      ctx.beginPath(); ctx.moveTo(midX, 50); ctx.lineTo(midX, H - 50); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // --- LEFT SIDE: THE WIGGLER ---
+      const leftCenterX = midX / 2;
+      const centerY = H / 2;
+
+      // The Rotating "Clock Hand" (Hidden Phase)
+      ctx.strokeStyle = '#3f3f46';
+      ctx.beginPath();
+      ctx.arc(leftCenterX, centerY, amplitude * decay, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(leftCenterX, centerY);
+      ctx.lineTo(leftCenterX + x, centerY); // We only show the projection
+      ctx.stroke();
+
+      // The Bouncing Ball
+      ctx.fillStyle = '#18181b';
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#60a5fa';
+      ctx.beginPath();
+      ctx.arc(leftCenterX + x, centerY, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Labels
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = '12px monospace';
+      ctx.fillText("REAL WORLD (POSITION)", leftCenterX - 60, centerY + 100);
+
+      // --- RIGHT SIDE: THE PHASE SPACE RADAR ---
+      const rightCenterX = midX + (midX / 2);
+      
+      // Radar Grid
+      ctx.strokeStyle = '#166534';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(rightCenterX - 100, centerY); ctx.lineTo(rightCenterX + 100, centerY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(rightCenterX, centerY - 100); ctx.lineTo(rightCenterX, centerY + 100); ctx.stroke();
+
+      // The Trail (Phase Space)
+      if (historyRef.current.length > 2) {
         ctx.beginPath();
-        ctx.moveTo(width * 0.30, 20); ctx.lineTo(width * 0.30, height - 20);
-        ctx.moveTo(width * 0.70, 20); ctx.lineTo(width * 0.70, height - 20);
-        ctx.stroke();
-
-        // 1. PHASOR
-        ctx.strokeStyle = '#3f3f46';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(cxPhasor, cy, radius, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(cxPhasor - radius - 10, cy); ctx.lineTo(cxPhasor + radius + 10, cy);
-        ctx.moveTo(cxPhasor, cy - radius - 10); ctx.lineTo(cxPhasor, cy + radius + 10);
-        ctx.stroke();
-
-        const tipX = cxPhasor + x;
-        const tipY = cy - (radius * Math.sin(theta)); 
-
-        ctx.strokeStyle = '#a1a1aa';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cxPhasor, cy);
-        ctx.lineTo(tipX, tipY);
-        ctx.stroke();
-
-        ctx.fillStyle = '#4ade80';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = 'rgba(74, 222, 128, 0.5)';
-        ctx.beginPath();
-        ctx.arc(tipX, tipY, 6, 0, Math.PI*2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        ctx.fillStyle = '#71717a';
-        ctx.font = '10px monospace';
-        ctx.fillText("PHASOR", cxPhasor - 20, height - 10);
-
-        // 2. TIME DOMAIN
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(cxWaveStart, 0, cxWaveEnd - cxWaveStart, height);
-        ctx.clip();
-
-        ctx.strokeStyle = '#27272a';
-        ctx.beginPath();
-        ctx.moveTo(cxWaveStart, cy); ctx.lineTo(cxWaveEnd, cy);
-        ctx.stroke();
-
         ctx.strokeStyle = '#4ade80';
         ctx.lineWidth = 2;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'rgba(74, 222, 128, 0.4)';
-        ctx.beginPath();
-
-        const wavePlotX = cxWaveStart + 20; 
-        
-        for(let i=0; i<trailRef.current.length; i++) {
-            const pt = trailRef.current[trailRef.current.length - 1 - i];
-            const px = wavePlotX + (i * 3); 
-            const py = cy - pt.pos;
-            if (px > cxWaveEnd) break;
-            
-            if (i===0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        }
+        historyRef.current.forEach((p, i) => {
+          // Scale velocity down for display
+          const displayV = p.y / (omega + 1); 
+          if (i === 0) ctx.moveTo(rightCenterX + p.x, centerY + displayV);
+          else ctx.lineTo(rightCenterX + p.x, centerY + displayV);
+        });
         ctx.stroke();
-        ctx.restore();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#71717a';
-        ctx.fillText("TIME DOMAIN x(t)", cxWaveStart + 10, height - 10);
+      }
 
-        // 3. PHASE SPACE
-        ctx.strokeStyle = '#27272a';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cxPhase, cy - height/3); ctx.lineTo(cxPhase, cy + height/3);
-        ctx.moveTo(cxPhase - width/10, cy); ctx.lineTo(cxPhase + width/10, cy);
-        ctx.stroke();
+      // Current Point
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(rightCenterX + x, centerY + (v / (omega + 1)), 4, 0, Math.PI * 2);
+      ctx.fill();
 
-        ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = 2;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'rgba(74, 222, 128, 0.4)';
-        ctx.beginPath();
-        for(let i=0; i<trailRef.current.length; i++) {
-            const pt = trailRef.current[trailRef.current.length - 1 - i];
-            const px = cxPhase + pt.pos;
-            const py = cy - (pt.vel * 0.8); 
-            
-            if (i===0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        }
-        ctx.stroke();
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText("PHASE SPACE (RADAR)", rightCenterX - 60, centerY + 120);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#888';
+      ctx.fillText("X-Axis: Where you are", rightCenterX - 60, centerY + 140);
+      ctx.fillText("Y-Axis: How fast you are", rightCenterX - 60, centerY + 155);
 
-        const psX = cxPhase + x;
-        const psY = cy - (v * 0.8);
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(psX, psY, 4, 0, Math.PI*2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        ctx.fillStyle = '#71717a';
-        ctx.fillText("PHASE SPACE (v vs x)", cxPhase - 40, height - 10);
-
-        requestRef.current = requestAnimationFrame(animate);
+      requestRef.current = requestAnimationFrame(animate);
     };
 
-    // FIX: Dependency array is empty. The loop starts once and never stops/restarts.
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current!);
-  }, []); 
+  }, []);
 
   return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// --- 4. Controls Component (Unchanged) ---
-const renderControls = ({ values, setValue }: { 
-    values: SimState, 
-    setValue: (k: keyof SimState, v: any) => void 
-}) => (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-center border-b border-zinc-800 pb-4">
-            <div className="flex items-center gap-4">
-                 <button 
-                    onClick={() => setValue('isPlaying', !values.isPlaying)}
-                    className={`
-                        w-12 h-12 flex items-center justify-center rounded-full border transition-all duration-300
-                        ${values.isPlaying 
-                            ? 'bg-green-500/10 border-green-500/50 text-green-400 shadow-[0_0_15px_rgba(74,222,128,0.2)]' 
-                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}
-                    `}
-                >
-                    {values.isPlaying ? <FaPause /> : <FaPlay className="ml-1" />}
-                </button>
-                <button 
-                    onClick={() => setValue('resetTrigger', values.resetTrigger + 1)}
-                    className="w-10 h-10 flex items-center justify-center rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-all"
-                    title="Reset t=0"
-                >
-                    <FaRedo size={14} />
-                </button>
-            </div>
-            <div className="flex gap-6 font-mono text-xs">
-                <div className="text-right">
-                    <span className="block text-zinc-500 uppercase tracking-wider text-[10px]">Position x(t)</span>
-                    <span className="text-green-400 font-bold text-lg">
-                        {(values.amplitude * Math.cos(values.phase)).toFixed(2)}
-                    </span>
-                </div>
-                <div className="w-px bg-zinc-800"></div>
-                <div className="text-right">
-                    <span className="block text-zinc-500 uppercase tracking-wider text-[10px]">Velocity v(t)</span>
-                    <span className="text-yellow-400 font-bold text-lg">
-                        {(-values.amplitude * values.omega * Math.sin(values.phase)).toFixed(2)}
-                    </span>
-                </div>
-            </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-4 group">
-                <div className="flex justify-between items-end">
-                    <div className="flex items-center gap-2">
-                        <FaCircleNotch className="text-zinc-600 group-hover:text-green-400 transition-colors" />
-                        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">
-                            Angular Freq (ω)
-                        </label>
-                    </div>
-                    <span className="text-sm font-mono text-green-400 font-bold bg-green-900/10 px-2 py-1 rounded border border-green-500/20">
-                        {values.omega.toFixed(1)} <span className="text-zinc-500 text-[10px]">rad/s</span>
-                    </span>
-                </div>
-                <input 
-                    type="range" min="0.1" max="5.0" step="0.1"
-                    value={values.omega}
-                    onChange={(e) => setValue('omega', parseFloat(e.target.value))}
-                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-green-400 hover:accent-green-300"
-                />
-            </div>
-            <div className="space-y-4 group">
-                <div className="flex justify-between items-end">
-                    <div className="flex items-center gap-2">
-                        <FaWaveSquare className="text-zinc-600 group-hover:text-blue-400 transition-colors" />
-                        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-blue-400 transition-colors">
-                            Phase (φ)
-                        </label>
-                    </div>
-                    <span className="text-sm font-mono text-blue-400 font-bold bg-blue-900/10 px-2 py-1 rounded border border-blue-500/20">
-                        {values.phase.toFixed(2)} <span className="text-zinc-500 text-[10px]">rad</span>
-                    </span>
-                </div>
-                <input 
-                    type="range" min="0" max="6.28" step="0.1"
-                    value={values.phase}
-                    onChange={(e) => setValue('phase', parseFloat(e.target.value))}
-                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-400 hover:accent-blue-300"
-                />
-            </div>
-            <div className="space-y-4 group">
-                <div className="flex justify-between items-end">
-                    <div className="flex items-center gap-2">
-                        <FaProjectDiagram className="text-zinc-600 group-hover:text-amber-400 transition-colors" />
-                        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-amber-400 transition-colors">
-                            Amplitude (A)
-                        </label>
-                    </div>
-                    <span className="text-sm font-mono text-amber-400 font-bold bg-amber-900/10 px-2 py-1 rounded border border-amber-500/20">
-                        {values.amplitude.toFixed(1)} <span className="text-zinc-500 text-[10px]">units</span>
-                    </span>
-                </div>
-                <input 
-                    type="range" min="0.2" max="1.5" step="0.1"
-                    value={values.amplitude}
-                    onChange={(e) => setValue('amplitude', parseFloat(e.target.value))}
-                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-400 hover:accent-amber-300"
-                />
-            </div>
-        </div>
+// 4. Control Panel Logic
+const renderControls = ({ values, setValue }: any) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+    
+    {/* Omega Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-blue-400">DJ Spin Speed (ω)</label>
+        <span className="text-sm font-mono text-blue-400 font-bold">{values.omega.toFixed(1)}</span>
+      </div>
+      <input 
+        type="range" min="0.5" max="10" step="0.1"
+        value={values.omega}
+        onChange={(e) => setValue('omega', parseFloat(e.target.value))}
+        className="glow-range-blue"
+      />
     </div>
+
+    {/* Phase Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-yellow-400">Start Position (φ)</label>
+        <span className="text-sm font-mono text-yellow-400 font-bold">{values.phase.toFixed(0)}°</span>
+      </div>
+      <input 
+        type="range" min="0" max="360" step="10"
+        value={values.phase}
+        onChange={(e) => setValue('phase', parseFloat(e.target.value))}
+        className="glow-range-yellow"
+      />
+    </div>
+
+    {/* Amplitude Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400">Wiggle Size (A)</label>
+        <span className="text-sm font-mono text-green-400 font-bold">{values.amplitude.toFixed(0)}</span>
+      </div>
+      <input 
+        type="range" min="0" max="150" step="5"
+        value={values.amplitude}
+        onChange={(e) => setValue('amplitude', parseFloat(e.target.value))}
+        className="glow-range"
+      />
+    </div>
+
+    {/* Friction Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-red-400">Friction (b)</label>
+        <span className="text-sm font-mono text-red-400 font-bold">{(values.friction * 100).toFixed(0)}%</span>
+      </div>
+      <input 
+        type="range" min="0" max="0.2" step="0.01"
+        value={values.friction}
+        onChange={(e) => setValue('friction', parseFloat(e.target.value))}
+        className="glow-range-red"
+      />
+    </div>
+
+  </div>
 );
 
-// --- 5. Export ---
+// 5. Final Export Object
 export const SIMULATION_2 = {
-    title: 'The Cosmic Dance',
-    initialValues: { 
-        omega: 1.0, 
-        phase: 0.0, 
-        amplitude: 1.0,
-        isPlaying: true,
-        resetTrigger: 0
-    },
-    achievements: achievements,
-    renderSimulation: ({ values }: { values: SimState }) => <PhaseSpaceCanvas values={values} />,
-    renderControls: renderControls
+  title: 'Phase Space Radar: Tracking the Wiggle',
+  initialValues: { 
+    omega: 3.0, 
+    phase: 0, 
+    amplitude: 80, 
+    friction: 0 
+  },
+  achievements: achievements,
+  renderSimulation: ({ values }: { values: PhaseState }) => (
+    <PhaseCanvas values={values} />
+  ),
+  renderControls: renderControls
 };

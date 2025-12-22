@@ -1,49 +1,67 @@
 import React, { useEffect, useRef } from 'react';
 import { type Achievement } from '../../components/SimulationEngine';
 
-// 1. Interface
-interface SimState {
-  mass: number;
-  k: number;
-  amplitude: number;
+// 1. The "Wiggler" State
+interface PendulumState {
+  length: number;    // How long the string is
+  gravity: number;   // Moon vs Earth vs Jupiter
+  startAngle: number; // How far you pull it back
+  damping: number;    // Air thickness/friction
 }
 
-// 2. Achievements
-const achievements: Achievement<SimState>[] = [
+// 2. Secret "Missions" (Achievements)
+const achievements: Achievement<PendulumState>[] = [
   {
-    id: 'heavy-lifter',
-    title: 'Heavy Lifter',
-    description: 'Simulate a mass greater than 9.0 kg.',
-    condition: (s) => s.mass > 9.0
+    id: 'lanky-swing',
+    title: 'The Grandfather Clock',
+    description: 'Set the length to the absolute maximum. Big strings make slow vibes.',
+    condition: (s) => s.length >= 290
   },
   {
-    id: 'high-frequency',
-    title: 'High Frequency',
-    description: 'Create a stiff spring (k > 18) with a light mass (m < 2).',
-    condition: (s) => s.k > 18 && s.mass < 2
+    id: 'moon-vibes',
+    title: 'Moon Walker',
+    description: 'Turn gravity down to its lowest point. Space is slow, man.',
+    condition: (s) => s.gravity <= 2.0
   },
   {
-    id: 'perfect-stillness',
-    title: 'Perfect Stillness',
-    description: 'Set the amplitude to 0 to stop the motion entirely.',
-    condition: (s) => s.amplitude === 0
+    id: 'jupiter-energy',
+    title: 'Heavyweight Champion',
+    description: 'Set gravity to maximum. Jupiter is not a fan of long swings.',
+    condition: (s) => s.gravity >= 18.0
   },
   {
-    id: 'resonance-master',
-    title: 'Balanced System',
-    description: 'Match Mass and K perfectly (e.g. 5kg and 5N/m).',
-    condition: (s) => s.mass === s.k
+    id: 'vacuum-sealed',
+    title: 'Perpetual Motion?',
+    description: 'Remove all air resistance (damping = 0). It’ll wiggle forever!',
+    condition: (s) => s.damping === 0
+  },
+  {
+    id: 'tiny-tock',
+    title: 'The Hummingbird',
+    description: 'Short string + Max Gravity. It’s wiggling so fast it’s basically humming.',
+    condition: (s) => s.length < 60 && s.gravity > 15
+  },
+  {
+    id: 'zen-mode',
+    title: 'Perfect Zen',
+    description: 'Stop the motion entirely by setting the start angle to 0.',
+    condition: (s) => s.startAngle === 0
   }
 ];
 
-// 3. Canvas
-const PhysicsCanvas = ({ values }: { values: SimState }) => {
+// 3. The Visualizer
+const PendulumCanvas = ({ values }: { values: PendulumState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const timeRef = useRef<number>(0);
+  const angleRef = useRef<number>(0);
   const valuesRef = useRef(values);
 
-  useEffect(() => { valuesRef.current = values; }, [values]);
+  useEffect(() => { 
+    valuesRef.current = values;
+    // Reset position if angle is set to 0
+    if (values.startAngle === 0) angleRef.current = 0;
+  }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -54,73 +72,73 @@ const PhysicsCanvas = ({ values }: { values: SimState }) => {
     let width = 0, height = 0;
 
     const animate = () => {
-        // Resize logic tailored for the container
-        const parent = canvas.parentElement;
-        if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
-            width = parent.clientWidth;
-            height = parent.clientHeight;
-            canvas.width = width;
-            canvas.height = height;
-        }
+      const parent = canvas.parentElement;
+      if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+        width = parent.clientWidth;
+        height = parent.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+      }
 
-        const { mass, k, amplitude } = valuesRef.current;
-        timeRef.current += 0.1;
-        
-        const omega = Math.sqrt(k / mass);
-        const disp = amplitude * Math.cos(omega * timeRef.current);
+      const { length, gravity, startAngle, damping } = valuesRef.current;
+      
+      // SHM Math: T = 2π√(L/g)
+      // We use a simplified angular frequency ω
+      const omega = Math.sqrt(gravity * 10 / length);
+      timeRef.current += 0.016; // Approx 60fps
 
-        ctx.fillStyle = '#18181b';
-        ctx.fillRect(0, 0, width, height);
+      // Calculate Angle with Damping
+      // θ(t) = θ0 * e^(-bt) * cos(ωt)
+      const decay = Math.exp(-damping * timeRef.current * 0.1);
+      const currentAngle = (startAngle * (Math.PI / 180)) * decay * Math.cos(omega * timeRef.current * 10);
 
-        // Center line
-        ctx.strokeStyle = '#27272a';
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height);
-        ctx.stroke();
-        ctx.setLineDash([]);
+      // --- Drawing ---
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(0, 0, width, height);
 
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const blockX = centerX + disp;
+      const pivotX = width / 2;
+      const pivotY = 50;
+      const bobX = pivotX + Math.sin(currentAngle) * length;
+      const bobY = pivotY + Math.cos(currentAngle) * length;
 
-        // Spring
-        ctx.beginPath();
-        ctx.strokeStyle = '#52525b';
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        ctx.moveTo(0, centerY);
-        
-        const coils = 12;
-        for(let i=0; i<=coils; i++) {
-            const x = (i/coils) * blockX;
-            const yOffset = i%2===0 ? -15 : 15;
-            if (i===0 || i===coils) ctx.lineTo(x, centerY);
-            else ctx.lineTo(x, centerY + yOffset);
-        }
-        ctx.stroke();
+      // Pivot Base
+      ctx.fillStyle = '#27272a';
+      ctx.fillRect(pivotX - 30, pivotY - 10, 60, 10);
 
-        // Mass Block
-        ctx.fillStyle = '#18181b';
-        ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(74, 222, 128, 0.4)';
-        ctx.shadowBlur = 25;
-        
-        const size = 50 + (mass * 4);
-        ctx.fillRect(blockX - size/2, centerY - size/2, size, size);
-        ctx.strokeRect(blockX - size/2, centerY - size/2, size, size);
-        
-        // Label
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#4ade80';
-        ctx.font = 'bold 14px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${mass.toFixed(1)}kg`, blockX, centerY);
+      // String
+      ctx.beginPath();
+      ctx.strokeStyle = '#52525b';
+      ctx.lineWidth = 2;
+      ctx.moveTo(pivotX, pivotY);
+      ctx.lineTo(bobX, bobY);
+      ctx.stroke();
 
-        requestRef.current = requestAnimationFrame(animate);
+      // Motion Trail (Slightly fancy)
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.1)';
+      ctx.arc(pivotX, pivotY, length, (Math.PI/2) - (startAngle * Math.PI/180), (Math.PI/2) + (startAngle * Math.PI/180));
+      ctx.stroke();
+
+      // The Bob (The actual weight)
+      ctx.fillStyle = '#18181b';
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = 'rgba(74, 222, 128, 0.5)';
+      ctx.shadowBlur = 20;
+      
+      ctx.beginPath();
+      ctx.arc(bobX, bobY, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      
+      // Speed Indicator
+      const speed = Math.abs(Math.sin(omega * timeRef.current * 10)) * 100;
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#4ade80';
+      ctx.font = '10px monospace';
+      ctx.fillText(`VIBE SPEED: ${speed.toFixed(0)}%`, bobX + 25, bobY);
+
+      requestRef.current = requestAnimationFrame(animate);
     };
 
     requestRef.current = requestAnimationFrame(animate);
@@ -130,66 +148,81 @@ const PhysicsCanvas = ({ values }: { values: SimState }) => {
   return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-const renderControls = ({ values, setValue }) => (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            
-            {/* Mass Slider */}
-            <div className="space-y-3 group">
-              <div className="flex justify-between items-end">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Mass (m)</label>
-                <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-                    <span className="text-sm font-mono text-green-400 font-bold">{values.mass.toFixed(1)} <span className="text-zinc-500 text-xs">kg</span></span>
-                </div>
-              </div>
-              <input 
-                type="range" min="0.5" max="10" step="0.5"
-                value={values.mass}
-                onChange={(e) => setValue('mass', parseFloat(e.target.value))}
-                className="glow-range"
-              />
-            </div>
+// 4. The Dashboard
+const renderControls = ({ values, setValue }: any) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+    
+    {/* Length Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400">String Length</label>
+        <span className="text-sm font-mono text-green-400 font-bold">{values.length} <span className="text-zinc-600 text-xs">cm</span></span>
+      </div>
+      <input 
+        type="range" min="50" max="300" step="10"
+        value={values.length}
+        onChange={(e) => setValue('length', parseFloat(e.target.value))}
+        className="glow-range"
+      />
+    </div>
 
-            {/* Spring Constant Slider */}
-            <div className="space-y-3 group">
-              <div className="flex justify-between items-end">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Spring Constant (k)</label>
-                <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-                    <span className="text-sm font-mono text-green-400 font-bold">{values.k.toFixed(0)} <span className="text-zinc-500 text-xs">N/m</span></span>
-                </div>
-              </div>
-              <input 
-                type="range" min="1" max="20" step="1"
-                value={values.k}
-                onChange={(e) => setValue('k', parseFloat(e.target.value))}
-                className="glow-range"
-              />
-            </div>
+    {/* Gravity Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400">Planet Gravity</label>
+        <span className="text-sm font-mono text-green-400 font-bold">{values.gravity.toFixed(1)} <span className="text-zinc-600 text-xs">m/s²</span></span>
+      </div>
+      <input 
+        type="range" min="1.6" max="20" step="0.2"
+        value={values.gravity}
+        onChange={(e) => setValue('gravity', parseFloat(e.target.value))}
+        className="glow-range"
+      />
+    </div>
 
-            {/* Amplitude Slider */}
-            <div className="space-y-3 group">
-              <div className="flex justify-between items-end">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Amplitude (A)</label>
-                <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-                    <span className="text-sm font-mono text-green-400 font-bold">{values.amplitude.toFixed(0)} <span className="text-zinc-500 text-xs">px</span></span>
-                </div>
-              </div>
-              <input 
-                type="range" min="0" max="250" step="10"
-                value={values.amplitude}
-                onChange={(e) => setValue('amplitude', parseFloat(e.target.value))}
-                className="glow-range"
-              />
-            </div>
+    {/* Angle Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400">Starting Pull</label>
+        <span className="text-sm font-mono text-green-400 font-bold">{values.startAngle}°</span>
+      </div>
+      <input 
+        type="range" min="0" max="75" step="5"
+        value={values.startAngle}
+        onChange={(e) => setValue('startAngle', parseFloat(e.target.value))}
+        className="glow-range"
+      />
+    </div>
 
-          </div>
-)
+    {/* Damping Control */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400">Air Thickness</label>
+        <span className="text-sm font-mono text-green-400 font-bold">{values.damping === 0 ? 'VACUUM' : values.damping.toFixed(1)}</span>
+      </div>
+      <input 
+        type="range" min="0" max="2" step="0.1"
+        value={values.damping}
+        onChange={(e) => setValue('damping', parseFloat(e.target.value))}
+        className="glow-range"
+      />
+    </div>
 
+  </div>
+);
+
+// 5. Final Export
 export const SIMULATION_1 = {
-    title: 'Harmonic Oscillator',
-    initialValues: { mass: 2, k: 5, amplitude: 100 },
-    achievements: achievements,
-    renderSimulation: ({ values }) => (
-        <PhysicsCanvas values={values} />
-    ),
-    renderControls: renderControls
-}
+  title: 'Wiggle Lab: Simple Harmonic Motion',
+  initialValues: { 
+    length: 150, 
+    gravity: 9.8, 
+    startAngle: 45, 
+    damping: 0.1 
+  },
+  achievements: achievements,
+  renderSimulation: ({ values }: { values: PendulumState }) => (
+    <PendulumCanvas values={values} />
+  ),
+  renderControls: renderControls
+};
