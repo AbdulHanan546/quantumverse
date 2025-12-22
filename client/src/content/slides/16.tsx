@@ -13,8 +13,6 @@ import {
   Wifi
 } from "lucide-react";
 
-import type { SlideData, SimulationDriver } from "./types";
-
 /* -------------------------------------------------------------------------- */
 /*                         SIMULATION FUNCTIONS                               */
 /* -------------------------------------------------------------------------- */

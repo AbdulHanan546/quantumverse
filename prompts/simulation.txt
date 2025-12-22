@@ -381,4 +381,4 @@ u have to generate file like above and name the export const variable like SIMUL
 And achievements should be around 4-8 (your choice) and in a way to make user explore simulation in a meaningful way ok
 imports are the same
 here is topic:
--> 1. Simple Harmonic Motion
+-> 25. Davisson–Germer Experiment

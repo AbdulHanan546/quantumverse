@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generateSlides } from '../api/generation.ts';
-import type { SlideComponent } from '../types/generation.types';
+import { generateSlides } from '../api/generation';
+import type { SlideData } from './TopicRenderer';
 import Spinner from './Spinner';
 
 interface GenerateModalProps {
@@ -20,45 +20,46 @@ export default function GenerateModal({
   const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      setError('Please enter a prompt');
-      return;
-    }
+  if (!prompt.trim()) {
+    setError('Please enter a prompt');
+    return;
+  }
 
-    if (prompt.trim().length < 3) {
-      setError('Prompt must be at least 3 characters');
-      return;
-    }
+  if (prompt.trim().length < 3) {
+    setError('Prompt must be at least 3 characters');
+    return;
+  }
 
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      // Generate slides with just prompt and hints
-      const slides = await generateSlides(prompt, hints || undefined);
-      
-      // Navigate to topic viewer with generated slides
-      navigate(`/topic/generated-slides`, {
-        state: {
-          components: slides,
-          isGenerated: true,
-        },
-      });
+  try {
+    const rawSlides: any[] = await generateSlides(prompt, hints || undefined);
 
-      // Reset form and close
-      setPrompt('');
-      setHints('');
-      onClose();
-    } catch (err: any) {
-      console.error('Generation error:', err);
-      setError(
-        err.response?.data?.message ||
+    // Navigate to topic viewer with raw slides (they will be adapted on the viewer page)
+    navigate('/topic/generated-slides', {
+      state: {
+        components: rawSlides,
+        isGenerated: true,
+        topicTitle: prompt,
+      },
+      replace: false,
+    });
+
+    // Reset form and close
+    setPrompt('');
+    setHints('');
+    onClose();
+  } catch (err:  any) {
+    console.error('Generation error:', err);
+    setError(
+      err. response?.data?.message ||
         'Failed to generate slides. Please try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!open) return null;
 
