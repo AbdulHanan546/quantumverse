@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { FaForward, FaTerminal } from "react-icons/fa";
+import { FaForward, FaTerminal, FaVolumeUp, FaVolumeMute } from "react-icons/fa";
 
 /* ================= TYPES ================= */
 
@@ -28,7 +28,7 @@ interface StoryEngineProps {
 const getFemaleVoice = (): SpeechSynthesisVoice | null => {
   const voices = window.speechSynthesis.getVoices();
   return (
-    voices.find(v =>
+    voices.find((v) =>
       v.lang === "en-US" &&
       /female|zira|samantha|victoria/i.test(v.name)
     ) || null
@@ -42,15 +42,15 @@ const crtStyles = {
     background: `linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%),
                  linear-gradient(90deg, rgba(255,0,0,0.06), rgba(0,255,0,0.02), rgba(0,0,255,0.06))`,
     backgroundSize: "100% 2px, 3px 100%",
-    pointerEvents: "none" as const
+    pointerEvents: "none" as const,
   },
   grid: {
     backgroundImage: `
       linear-gradient(rgba(245,158,11,0.05) 1px, transparent 1px),
       linear-gradient(90deg, rgba(245,158,11,0.05) 1px, transparent 1px)
     `,
-    backgroundSize: "40px 40px"
-  }
+    backgroundSize: "40px 40px",
+  },
 };
 
 /* ================= COMPONENT ================= */
@@ -58,96 +58,135 @@ const crtStyles = {
 export const StoryEngine: React.FC<StoryEngineProps> = ({
   title,
   script,
-  onFinish
+  onFinish,
 }) => {
   const [index, setIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(true);
   const [voice, setVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
 
+  // REFS
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const timeRef = useRef(0);
   const mouseXRef = useRef(0.5);
 
+  // TRACKING REFS (Critical for the pause/resume logic)
+  // This tracks exactly how many characters have been shown so far.
+  const charIndexRef = useRef(0); 
+  // This helps us detect if the effect ran because the slide changed or just the audio toggle changed.
+  const lastSlideIndexRef = useRef(-1);
+
   const currentStep = script[index];
 
-  /* ========== LOAD VOICES SAFELY ========== */
+  /* ========== LOAD VOICES ========== */
 
   useEffect(() => {
     const loadVoices = () => {
       const v = getFemaleVoice();
       if (v) setVoice(v);
     };
-
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices;
-
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null;
-    };
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
-  /* ========== SYNC VOICE + TYPEWRITER ========== */
+  /* ========== TYPEWRITER & AUDIO LOGIC ========== */
 
   useEffect(() => {
-    if (!voice) return;
-
-    setDisplayedText("");
-    setIsTyping(true);
-
     const fullText = currentStep.text;
-    let charIndex = 0;
     let intervalId: number | null = null;
 
-    const utterance = new SpeechSynthesisUtterance(fullText);
-    utterance.voice = voice;
-    utterance.rate = 1.1;
-    utterance.pitch = 1.25;
-    utterance.volume = 0.9;
+    // 1. NEW SLIDE DETECTION
+    // If the index has changed since the last run, reset everything.
+    if (lastSlideIndexRef.current !== index) {
+      lastSlideIndexRef.current = index;
+      charIndexRef.current = 0;
+      setDisplayedText("");
+      setIsTyping(true);
+      window.speechSynthesis.cancel();
+    }
 
-    utterance.onstart = () => {
-      intervalId = window.setInterval(() => {
-        charIndex++;
-        setDisplayedText(fullText.slice(0, charIndex));
-
-        if (charIndex >= fullText.length) {
-          setIsTyping(false);
-          if (intervalId) clearInterval(intervalId);
-        }
-      }, 45);
-    };
-
-    utterance.onend = () => {
-      setDisplayedText(fullText);
+    // 2. CHECK IF FINISHED
+    // If we've already typed everything, don't restart logic
+    if (charIndexRef.current >= fullText.length) {
       setIsTyping(false);
-      if (intervalId) clearInterval(intervalId);
-    };
-
-    utterance.onerror = () => {
       setDisplayedText(fullText);
-      setIsTyping(false);
-      if (intervalId) clearInterval(intervalId);
+      return;
+    }
+
+    // 3. PREPARE RESUME DATA
+    // We resume from wherever charIndexRef is currently pointing
+    const startFromIndex = charIndexRef.current;
+    const remainingText = fullText.slice(startFromIndex);
+
+    // Helper: The function that adds one character
+    const typeNextChar = () => {
+      charIndexRef.current++;
+      setDisplayedText(fullText.slice(0, charIndexRef.current));
+
+      if (charIndexRef.current >= fullText.length) {
+        setIsTyping(false);
+        if (intervalId) clearInterval(intervalId);
+      }
     };
 
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    // 4. AUDIO vs SILENT LOGIC
+    window.speechSynthesis.cancel(); // Always stop previous audio first
 
+    if (isAudioEnabled && voice && remainingText.length > 0) {
+      // --- AUDIO MODE ---
+      // We speak ONLY the remaining text
+      const utterance = new SpeechSynthesisUtterance(remainingText);
+      utterance.voice = voice;
+      utterance.rate = 1.1;
+      utterance.pitch = 1.25;
+      utterance.volume = 0.9;
+
+      utterance.onstart = () => {
+        // Only start typing visually when audio actually starts
+        if (intervalId) clearInterval(intervalId);
+        intervalId = window.setInterval(typeNextChar, 45);
+      };
+
+      utterance.onend = () => {
+        // Ensure we snap to finish in case of timing drift
+        setIsTyping(false);
+        setDisplayedText(fullText);
+        charIndexRef.current = fullText.length;
+        if (intervalId) clearInterval(intervalId);
+      };
+
+      utterance.onerror = () => {
+        setIsTyping(false);
+        if (intervalId) clearInterval(intervalId);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } else {
+      // --- SILENT MODE ---
+      // Just run the interval immediately from current spot
+      intervalId = window.setInterval(typeNextChar, 45);
+    }
+
+    // CLEANUP
     return () => {
       if (intervalId) clearInterval(intervalId);
       window.speechSynthesis.cancel();
     };
-  }, [index, voice]);
+  }, [index, isAudioEnabled, voice, currentStep.text]); 
+  // ^ Re-runs when audio is toggled OR slide changes
 
   /* ========== CANVAS ANIMATION LOOP ========== */
 
   const animate = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Resize handling
     const parent = canvas.parentElement;
     if (parent) {
       if (canvas.width !== parent.clientWidth) canvas.width = parent.clientWidth;
@@ -173,26 +212,27 @@ export const StoryEngine: React.FC<StoryEngineProps> = ({
     return () => cancelAnimationFrame(requestRef.current!);
   }, [animate]);
 
-  /* ========== INPUTS ========== */
+  /* ========== HANDLERS ========== */
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    mouseXRef.current = Math.max(
-      0,
-      Math.min(1, (e.clientX - rect.left) / rect.width)
-    );
+    mouseXRef.current = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   };
 
   const handleNext = () => {
+    // 1. If currently typing, fast-forward to end
     if (isTyping) {
-      setDisplayedText(currentStep.text);
       setIsTyping(false);
+      setDisplayedText(currentStep.text);
+      charIndexRef.current = currentStep.text.length; // Mark as done
       window.speechSynthesis.cancel();
       return;
     }
 
+    // 2. If done, go to next slide
     if (index < script.length - 1) {
       setIndex(index + 1);
+      // Note: The Effect will handle resetting refs because index changes
     } else {
       onFinish();
     }
@@ -208,21 +248,40 @@ export const StoryEngine: React.FC<StoryEngineProps> = ({
   return (
     <div className="flex items-center justify-center min-h-screen bg-black p-4 font-mono select-none">
       <div className="relative w-full max-w-[1200px] aspect-video bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800">
-
+        
         <div className="absolute inset-0 z-20" style={crtStyles.scanline} />
 
-        <div className="absolute top-0 w-full p-4 z-30 flex justify-between">
+        {/* HEADER */}
+        <div className="absolute top-0 w-full p-4 z-30 flex justify-between items-center">
           <div className="bg-black/60 px-3 py-1 border border-amber-900 text-xs text-amber-500 flex items-center gap-2">
             <FaTerminal /> {title}
           </div>
-          <button
-            onClick={onFinish}
-            className="flex items-center gap-2 text-xs text-zinc-400 hover:text-amber-500"
-          >
-            Skip <FaForward />
-          </button>
+
+          <div className="flex items-center gap-4">
+             {/* TOGGLE BUTTON */}
+            <button
+              onClick={() => setIsAudioEnabled(!isAudioEnabled)}
+              className={`flex items-center gap-2 text-xs transition-colors ${
+                isAudioEnabled ? "text-amber-500" : "text-zinc-500"
+              } hover:text-amber-400`}
+            >
+              {isAudioEnabled ? (
+                <><FaVolumeUp /> Voice On</>
+              ) : (
+                <><FaVolumeMute /> Voice Off</>
+              )}
+            </button>
+
+            <button
+              onClick={onFinish}
+              className="flex items-center gap-2 text-xs text-zinc-400 hover:text-amber-500"
+            >
+              Skip <FaForward />
+            </button>
+          </div>
         </div>
 
+        {/* CANVAS LAYER */}
         <div
           className="absolute inset-0 z-0"
           style={crtStyles.grid}
@@ -231,6 +290,7 @@ export const StoryEngine: React.FC<StoryEngineProps> = ({
           <canvas ref={canvasRef} className="w-full h-full" />
         </div>
 
+        {/* DIALOGUE BOX */}
         <div className="absolute bottom-0 w-full z-30 p-6 flex justify-center">
           <div
             onClick={handleNext}
