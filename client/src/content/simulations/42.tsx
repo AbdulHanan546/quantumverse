@@ -33,18 +33,6 @@ const achievements: Achievement<QuantumState>[] = [
     condition: (s) => s.particleEnergy > s.barrierHeight
   },
   {
-    id: 'quantum-sweet-spot',
-    title: 'The Goldilocks Zone',
-    description: 'Find the sweet spot: Energy is low, but the wall is thin enough that >50% of particles get through.',
-    condition: (s) => {
-        if (s.particleEnergy >= s.barrierHeight) return false;
-        // Simplified transmission check
-        const k = Math.sqrt(s.barrierHeight - s.particleEnergy);
-        const transmission = Math.exp(-2 * (s.barrierThickness/10) * k);
-        return transmission > 0.5;
-    }
-  },
-  {
     id: 'vacuum-state',
     title: 'Vacuum of Space',
     description: 'Remove the barrier entirely. Is it even tunneling if there is no wall?',

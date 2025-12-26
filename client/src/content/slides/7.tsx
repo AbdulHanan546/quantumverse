@@ -204,9 +204,9 @@ export const SLIDES_7: SlideData[] = [
         latex: "y_{total} = y_1 + y_2",
         description: "This is the 'Principle of Superposition'. At any point, the total displacement is simply the sum of the individual displacements.",
         variables: [
-            { symbol: "y_total", meaning: "Resulting Wave Height" },
-            { symbol: "y_1", meaning: "Height of Wave 1" },
-            { symbol: "y_2", meaning: "Height of Wave 2" }
+            { symbol: "y_{\\text{total}}", meaning: "Resulting Wave Height" },
+            { symbol: "y_{\\text{1}}", meaning: "Height of Wave 1" },
+            { symbol: "y_{\\text{2}}", meaning: "Height of Wave 2" }
         ]
     },
     {

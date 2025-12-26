@@ -221,7 +221,7 @@ export const SLIDES_42: SlideData[] = [
   {
     id: 10,
     type: "equation",
-    latex: "T \approx e^{-2wL}",
+    latex: "T \\approx e^{-2wL}",
     description: "This is a simplified way to see how likely 'tunneling' is. Don't worry about the math, just look at what matters!",
     variables: [
       { symbol: "T", meaning: "Chance of getting through" },

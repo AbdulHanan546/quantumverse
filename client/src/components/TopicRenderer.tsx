@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { InlineMath, BlockMath } from 'react-katex';
+import 'katex/dist/katex.min.css';
 
 /* -------------------------------------------------------------------------- */
 /*                                    UTILS                                   */
@@ -279,19 +281,21 @@ const ProcessView = ({ slide }: { slide: ProcessSlide }) => (
 const EquationView = ({ slide }: { slide: EquationSlide }) => (
   <div className="h-full max-w-4xl mx-auto flex flex-col justify-center items-center">
     <div className="bg-zinc-950 p-10 rounded-2xl border border-zinc-800 mb-10 shadow-2xl">
-      <span className="text-4xl md:text-6xl font-serif text-white tracking-wider">
-        {slide.latex}
-      </span>
+      <div className="text-4xl md:text-6xl text-white tracking-wider">
+        <BlockMath math={slide.latex} />
+      </div>
     </div>
     <p className="text-xl text-zinc-400 mb-12 text-center max-w-2xl">{slide.description}</p>
     
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
       {slide.variables.map((v, i) => (
         <div key={i} className="flex items-center gap-4 p-3 bg-zinc-900/30 rounded border border-zinc-800/50">
-          <div className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center font-serif text-green-400 text-xl font-bold">
-            {v.symbol}
+          <div className="min-w-[90px] max-w-[240px] px-3 py-2 rounded bg-zinc-800 inline-flex items-center justify-center text-center leading-none whitespace-nowrap overflow-hidden">
+            <span className="!text-[22px] text-green-400 !m-0">
+              <InlineMath math={v.symbol} />
+            </span>
           </div>
-          <span className="text-zinc-300 text-sm">{v.meaning}</span>
+          <span className="text-zinc-300 text-sm leading-snug break-words">{v.meaning}</span>
         </div>
       ))}
     </div>

@@ -214,13 +214,14 @@ export const SLIDES_46: SlideData[] = [
   {
     id: 8,
     type: "equation",
-    latex: "Ψ = α|0⟩ + β|1⟩",
+   latex: "\\Psi = \\alpha \\lvert 0 \\rangle + \\beta \\lvert 1 \\rangle",
     description: "This looks scary, but it's just a recipe! It says the state (Ψ) is a bit of Option A plus a bit of Option B.",
-    variables: [
-      { symbol: "Ψ", meaning: "The Quantum State (The 'Blurry' particle)" },
-      { symbol: "α / β", meaning: "The odds of finding it in that state" },
-      { symbol: "|0⟩ / |1⟩", meaning: "The two possible results (like Heads or Tails)" }
-    ]
+   variables: [
+  { symbol: "\\Psi", meaning: "The quantum state (the 'blurry' particle)" },
+  { symbol: "\\alpha,\\ \\beta", meaning: "The probability amplitudes" },
+  { symbol: "\\lvert 0 \\rangle,\\ \\lvert 1 \\rangle", meaning: "The two possible measurement outcomes" }
+]
+
   },
   {
     id: 9,

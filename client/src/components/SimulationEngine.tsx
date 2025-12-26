@@ -84,16 +84,14 @@ export const SimulationEngine = <T extends object>({
   const progress = Math.round((unlockedIds.size / achievements.length) * 100);
 
   return (
-    <div className="relative w-full min-h-screen bg-zinc-950 text-zinc-200 font-sans flex overflow-hidden">
+    <div className="relative w-full h-screen bg-zinc-950 text-zinc-200 font-sans flex overflow-hidden">
       
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'mr-80' : 'mr-0'}`}>
         
-        {/* Header */}
-
         {/* Simulation Canvas Area */}
-        <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center p-4">
-            <header className="absolute left-4 top-4 h-16 border-b rounded-xl border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur z-20">
+        <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center p-4 min-h-0">
+            <header className="absolute left-4 top-4 h-16 border-b rounded-xl border-zinc-800 flex items-center px-6 bg-zinc-900/50 backdrop-blur z-20">
           <h1 className="text-xl font-bold text-green-400 tracking-wider uppercase flex items-center gap-2">
             <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
             {title}
@@ -105,7 +103,7 @@ export const SimulationEngine = <T extends object>({
         </div>
 
         {/* Controls Area (Bottom) */}
-        <div className="h-auto min-h-[140px] bg-zinc-900 border-t border-zinc-800 p-6 z-20">
+        <div className="bg-zinc-900 border-t border-zinc-800 p-6 z-20 flex-shrink-0">
             {renderControls({ values, setValues, setValue })}
         </div>
       </div>
@@ -117,7 +115,7 @@ export const SimulationEngine = <T extends object>({
       >
         {/* Sidebar Header */}
         <div className="p-6 border-b border-zinc-800 bg-zinc-950">
-          <div className="flex justify-between items-center mb-4">
+          <div className="mb-4">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <FaTrophy className="text-yellow-500" />
               Achievements

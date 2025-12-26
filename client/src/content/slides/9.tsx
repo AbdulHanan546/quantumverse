@@ -197,10 +197,10 @@ export const SLIDES_9: SlideData[] = [
     {
         id: 6,
         type: "equation",
-        latex: "f_{beat} = |f_1 - f_2|",
+        latex: "f_{\\text{beat}} = |f_1 - f_2|",
         description: "If Wave A is 440 Hz and Wave B is 444 Hz, you will hear exactly 4 'wobbles' or beats every second.",
         variables: [
-            { symbol: "f_beat", meaning: "How fast the sound wobbles" },
+            { symbol: "f_{\\text{beat}}", meaning: "How fast the sound wobbles" },
             { symbol: "f_1, f_2", meaning: "The frequencies of the two sounds" }
         ]
     },

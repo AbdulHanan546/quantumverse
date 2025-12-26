@@ -189,7 +189,7 @@ export const SLIDES_39: SlideData[] = [
   {
     id: 8,
     type: "equation",
-    latex: "E_n = n \times h \times f",
+    latex: "E_n = n \\times h \\times f",
     description: "This is a simple way to look at it: Energy depends on which 'step' (n) you are on.",
     variables: [
       { symbol: "E", meaning: "Energy of the state" },

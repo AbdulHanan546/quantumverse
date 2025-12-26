@@ -32,13 +32,7 @@ const achievements: Achievement<SimState>[] = [
     description: 'Find the boring middle ground (45-55%). A little fuzzy here, a little fuzzy there.',
     condition: (s) => s.focus > 45 && s.focus < 55
   },
-  {
-    id: 'indecisive',
-    title: 'Make Up Your Mind',
-    description: 'Oscillate between particle and wave modes rapidly (this is a conceptual achievement for the user).',
-    // Logic: This is hard to track with just state, so we'll make it a simple "explore the range" check
-    condition: (s) => s.focus === 42 // The answer to life, the universe, and everything
-  },
+
   {
     id: 'time-lord',
     title: 'Time Lord',

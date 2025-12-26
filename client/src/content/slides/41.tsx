@@ -186,12 +186,12 @@ export const SLIDES_41: SlideData[] = [
   {
     id: 8,
     type: "equation",
-    latex: "E_n = n^2 \times \text{Base Energy}",
+    latex: "E_n = n^2 \\times \\text{Base Energy}",
     description: "The energy of our particle is like a ladder. You can be on Step 1 or Step 2, but never in between!",
     variables: [
       { symbol: "E", meaning: "Total Energy" },
       { symbol: "n", meaning: "The Step Number (1, 2, 3...)" },
-      { symbol: "n squared", meaning: "Energy grows fast! (1, 4, 9, 16)" }
+      { symbol: "n^2", meaning: "Energy grows fast! (1, 4, 9, 16)" }
     ]
   },
   {

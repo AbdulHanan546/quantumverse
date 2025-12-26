@@ -279,8 +279,8 @@ export const SLIDES_14: SlideData[] = [
         latex: "f_{push} = f_{natural}",
         description: "This is the formula for Resonance. It happens when the Frequency of the Push matches the Natural Frequency of the object.",
         variables: [
-            { symbol: "f_push", meaning: "Speed of your hand (Driving Force)" },
-            { symbol: "f_natural", meaning: "Speed the object wants to go" },
+            { symbol: "f_{\\text{push}}", meaning: "Speed of your hand (Driving Force)" },
+            { symbol: "f_{\\text{natural}}", meaning: "Speed the object wants to go" },
             { symbol: "=", meaning: "BOOM! Maximum Energy Transfer" }
         ]
     },

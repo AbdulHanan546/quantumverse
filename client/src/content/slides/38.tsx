@@ -143,7 +143,7 @@ export const SLIDES_38 = [
   {
     id: 6,
     type: "equation",
-    latex: "Hψ = iℏ (Δψ / Δt)",
+   latex: "\\hat{H}\\psi = i\\hbar \\frac{\\partial \\psi}{\\partial t}",
     description: "Don't panic! It just says: (Energy) x (Wave) = (Magic) x (Change over Time)",
     variables: [
       { symbol: "H", meaning: "Total Energy (The Engine)" },

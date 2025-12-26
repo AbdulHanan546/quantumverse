@@ -200,7 +200,7 @@ export const SLIDES_43: SlideData[] = [
   {
     id: 8,
     type: "equation",
-    latex: "E \approx \frac{n^2 h^2}{8mL^2}",
+    latex: "E \\approx \\frac{n^2 h^2}{8mL^2}",
     description: "Even though the math looks messy, it tells us something simple: If the box (L) gets smaller, the energy (E) shoots up!",
     variables: [
       { symbol: "E", meaning: "Energy of the particle" },

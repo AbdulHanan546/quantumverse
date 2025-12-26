@@ -211,7 +211,7 @@ export const SLIDES_48: SlideData[] = [
   {
     id: 9,
     type: "equation",
-    latex: "Mass \times Size \rightarrow Normal",
+    latex: "Mass \\times Size \\rightarrow Normal",
     description: "There is no magic line, but as things get bigger and heavier, the quantum math naturally turns into the 'normal' math we use in daily life.",
     variables: [
       { symbol: "Mass", meaning: "How much 'stuff' is in the object" },
