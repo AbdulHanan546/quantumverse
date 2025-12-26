@@ -1,40 +1,45 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { type Achievement } from '../../components/SimulationEngine';
-import { FaWeightHanging, FaBolt, FaExchangeAlt, FaRedo } from 'react-icons/fa';
 
 // --- 1. Interface ---
 interface MediumState {
-  density1: number;   // Linear density of Left String (mu)
-  density2: number;   // Linear density of Right String (mu)
-  tension: number;    // Global Tension (T)
-  pulseWidth: number; // Sharpness of the pulse
+  frequency: number; // Controlled by the source (your hand)
+  amplitude: number; // How high the wave is
+  density: number;   // Linear density (Thickness of the rope)
+  tension: number;   // Tension (How tight we pull it)
 }
 
 // --- 2. Achievements ---
 const achievements: Achievement<MediumState>[] = [
   {
-    id: 'invisible-seam',
-    title: 'Phantom Knot',
-    description: 'Make both strings exactly the same density. The wave passes through without reflecting.',
-    condition: (s) => Math.abs(s.density1 - s.density2) < 0.1
+    id: 'molasses',
+    title: 'Stuck in Molasses',
+    description: 'Create the slowest wave possible (Max Density, Min Tension).',
+    condition: (s) => s.density >= 9 && s.tension <= 2
   },
   {
-    id: 'brick-wall',
-    title: 'The Brick Wall',
-    description: 'Set Medium 2 to Max Density (Concrete) and Medium 1 to Min (Thread). Huge inverted reflection!',
-    condition: (s) => s.density2 >= 9.0 && s.density1 <= 1.5
+    id: 'fiber-optic',
+    title: 'Light Speed',
+    description: 'Make it travel instantly! (Min Density, Max Tension).',
+    condition: (s) => s.density <= 2 && s.tension >= 18
   },
   {
-    id: 'free-end',
-    title: 'The Whip Crack',
-    description: 'Heavy string into Light string. The wave speeds up and does NOT invert!',
-    condition: (s) => s.density1 >= 8.0 && s.density2 <= 2.0
+    id: 'confused-physics',
+    title: 'The Cancel Culture',
+    description: 'High Tension tries to speed it up, High Density slows it down. Balance them.',
+    condition: (s) => s.tension > 15 && s.density > 8
   },
   {
-    id: 'high-tension',
-    title: 'Fiber Optic',
-    description: 'Max out the Tension. Speed is life.',
-    condition: (s) => s.tension >= 4.5
+    id: 'flat-earth',
+    title: 'Flat Earth Theory',
+    description: 'Zero Amplitude. No wave, just a line. Boring.',
+    condition: (s) => s.amplitude === 0
+  },
+  {
+    id: 'perfect-storm',
+    title: 'Tsunami Mode',
+    description: 'Max Amplitude with a heavy medium (Density > 8).',
+    condition: (s) => s.amplitude >= 140 && s.density > 8
   }
 ];
 
@@ -42,45 +47,10 @@ const achievements: Achievement<MediumState>[] = [
 const MediumCanvas = ({ values }: { values: MediumState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
-  
-  // Simulation Constants
-  const RESOLUTION = 150; // More points for smoother transition
-  const BOUNDARY = Math.floor(RESOLUTION / 2); // The knot is in the middle
-  
-  // Physics Arrays
-  const currentRef = useRef<Float32Array>(new Float32Array(RESOLUTION).fill(0));
-  const prevRef = useRef<Float32Array>(new Float32Array(RESOLUTION).fill(0));
-  const speedMapRef = useRef<Float32Array>(new Float32Array(RESOLUTION).fill(0));
+  const timeRef = useRef<number>(0);
+  const valuesRef = useRef(values);
 
-  // Pulse Helper
-  const spawnPulse = useCallback(() => {
-    // Spawn at index 10 (Left side)
-    const startIdx = 15;
-    const width = values.pulseWidth;
-    for (let i = -width; i <= width; i++) {
-      const idx = startIdx + i;
-      if (idx > 0 && idx < RESOLUTION) {
-        // Gaussian pulse
-        const val = 80 * Math.exp(-(i*i)/(2*(width/2)*(width/2))); // Amplitude 80
-        currentRef.current[idx] += val;
-        prevRef.current[idx] += val; // Initial velocity 0
-      }
-    }
-  }, [values.pulseWidth]);
-
-  // Reset
-  const resetString = useCallback(() => {
-    currentRef.current.fill(0);
-    prevRef.current.fill(0);
-  }, []);
-
-  // Expose triggers to window for buttons (Hack for this architecture)
-  useEffect(() => {
-    // @ts-ignore
-    window.spawnMediumPulse = spawnPulse;
-    // @ts-ignore
-    window.resetMedium = resetString;
-  }, [spawnPulse, resetString]);
+  useEffect(() => { valuesRef.current = values; }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -91,7 +61,6 @@ const MediumCanvas = ({ values }: { values: MediumState }) => {
     let width = 0, height = 0;
 
     const animate = () => {
-      // Resize
       const parent = canvas.parentElement;
       if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
         width = parent.clientWidth;
@@ -100,208 +69,180 @@ const MediumCanvas = ({ values }: { values: MediumState }) => {
         canvas.height = height;
       }
 
-      // --- PHYSICS UPDATE ---
+      const { frequency, amplitude, density, tension } = valuesRef.current;
       
-      // 1. Build the Speed Map (c^2)
-      // v = sqrt(T / mu) -> c^2 = T / mu
-      // We precompute this because it changes abruptly at the boundary
-      const c2_1 = values.tension / values.density1;
-      const c2_2 = values.tension / values.density2;
-
-      // Smooth the transition slightly to avoid numerical explosion at the sharp step
-      for(let i=0; i<RESOLUTION; i++) {
-        if (i < BOUNDARY) speedMapRef.current[i] = c2_1;
-        else speedMapRef.current[i] = c2_2;
-      }
+      // PHYSICS ENGINE ---------------------------
+      // Wave Speed v is proportional to sqrt(Tension / Density)
+      // We add a multiplier to make it look good on screen
+      const waveSpeed = Math.sqrt(tension / density) * 15;
       
-      // 2. Wave Equation Solver
-      const u = currentRef.current;
-      const uPrev = prevRef.current;
-      const nextU = new Float32Array(RESOLUTION);
-      const cMap = speedMapRef.current;
-
-      // Damping factor to prevent infinite energy buildup
-      const damp = 0.995; 
-
-      for (let i = 1; i < RESOLUTION - 1; i++) {
-        // Standard Finite Difference
-        const laplacian = u[i+1] - 2*u[i] + u[i-1];
-        
-        // Courant stability check roughly (c^2 must be < 1.0)
-        // Our sliders limit T and mu to keep this safe-ish.
-        
-        let val = (2 * u[i]) - uPrev[i] + (cMap[i] * laplacian);
-        val *= damp; 
-        nextU[i] = val;
-      }
+      // Angular Frequency (omega) = 2 * pi * f
+      const omega = 2 * Math.PI * (frequency * 0.5);
       
-      // Fixed ends
-      nextU[0] = 0;
-      nextU[RESOLUTION-1] = 0;
+      // Wave Number (k) = omega / v
+      // This determines wavelength. If speed drops, k increases (wavelength shrinks).
+      const k = waveSpeed > 0 ? omega / waveSpeed : 0;
 
-      // Swap
-      prevRef.current.set(u);
-      currentRef.current.set(nextU);
+      // Increment time
+      // We use a fixed delta for smooth animation
+      timeRef.current += 0.016; // approx 60fps
 
-      // --- RENDER ---
+      // DRAWING ----------------------------------
       ctx.fillStyle = '#09090b';
       ctx.fillRect(0, 0, width, height);
-
+      
       const centerY = height / 2;
-      const segWidth = width / RESOLUTION;
 
-      // Draw The "Knot" (Boundary Line)
-      const boundaryX = BOUNDARY * segWidth;
-      ctx.strokeStyle = '#3f3f46';
-      ctx.setLineDash([5, 5]);
+      // 1. Draw the "Medium" (The Rope)
       ctx.beginPath();
-      ctx.moveTo(boundaryX, 0); ctx.lineTo(boundaryX, height);
-      ctx.stroke();
-      ctx.setLineDash([]);
       
-      // Label the mediums
-      ctx.font = 'bold 40px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#18181b'; // subtle background text
-      ctx.fillText("MEDIUM 1", boundaryX / 2, centerY);
-      ctx.fillText("MEDIUM 2", boundaryX + (boundaryX/2), centerY);
-
-
-      // Draw String
-      ctx.lineJoin = 'round';
+      // Visual Feedback: 
+      // High Tension = Hot colors (Red/Orange)
+      // Low Tension = Cold colors (Blue/Grey)
+      const tensionColor = Math.min(255, (tension / 20) * 255);
+      ctx.strokeStyle = `rgb(255, ${255 - tensionColor}, ${255 - tensionColor})`;
+      
+      // Visual Feedback:
+      // High Density = Thick Line
+      ctx.lineWidth = density * 1.5; 
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
-      // We draw in two passes to show thickness difference
+      // Draw the traveling sine wave
+      // y = A * sin(kx - wt)
+      // Note: We subtract wt to move Right. Add wt to move Left.
       
-      // PASS 1: Left String
-      ctx.beginPath();
-      // Thickness visual based on density
-      ctx.lineWidth = 2 + (values.density1 * 1.5); 
-      ctx.strokeStyle = '#22d3ee'; // Cyan
-      ctx.shadowColor = '#22d3ee';
-      ctx.shadowBlur = 10;
-      
-      for (let i = 0; i <= BOUNDARY; i++) {
-        const x = i * segWidth;
-        const y = centerY - nextU[i];
-        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      for (let x = 0; x <= width; x += 2) {
+        const y = centerY + amplitude * Math.sin((k * x) - (omega * timeRef.current));
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
       }
       ctx.stroke();
 
-      // PASS 2: Right String
-      ctx.beginPath();
-      ctx.lineWidth = 2 + (values.density2 * 1.5);
-      ctx.strokeStyle = '#f472b6'; // Pink
-      ctx.shadowColor = '#f472b6';
-      
-      for (let i = BOUNDARY; i < RESOLUTION; i++) {
-        const x = i * segWidth;
-        const y = centerY - nextU[i];
-        if (i===BOUNDARY) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      // 2. Draw Particles (to show medium doesn't move forward, only up/down)
+      // Let's draw a bead on the string every 100px
+      const beadSpacing = 100;
+      for (let x = 50; x < width; x += beadSpacing) {
+         const y = centerY + amplitude * Math.sin((k * x) - (omega * timeRef.current));
+         
+         ctx.beginPath();
+         ctx.arc(x, y, density + 3, 0, Math.PI * 2); // Bead size depends on density
+         ctx.fillStyle = '#facc15'; // Yellow beads
+         ctx.fill();
+         
+         // Little vertical arrows on the beads to show direction of motion
+         ctx.beginPath();
+         ctx.moveTo(x, y - (density+5));
+         ctx.lineTo(x, y + (density+5));
+         ctx.strokeStyle = '#000';
+         ctx.lineWidth = 1;
+         ctx.stroke();
       }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
 
-      // Draw Knot Point
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(boundaryX, centerY - nextU[BOUNDARY], 4, 0, Math.PI*2);
-      ctx.fill();
+      // 3. Stats HUD (Head-up Display)
+      ctx.fillStyle = '#52525b';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Wave Speed: ${waveSpeed.toFixed(1)} m/s`, 20, 30);
+      ctx.fillText(`Wavelength: ${(waveSpeed / (frequency || 1)).toFixed(1)} px`, 20, 50);
 
       requestRef.current = requestAnimationFrame(animate);
     };
 
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current!);
-  }, [values.tension, values.density1, values.density2]);
+  }, []);
 
   return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
 // --- 4. Controls Component ---
-const renderMediumControls = ({ values, setValue }: { 
-  values: MediumState; 
-  setValue: (k: keyof MediumState, v: any) => void;
+const renderControls = ({ values, setValue }: { 
+    values: MediumState, 
+    setValue: (k: keyof MediumState, v: any) => void 
 }) => (
-  <div className="flex flex-col gap-6 max-w-6xl mx-auto">
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
     
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-      
-      {/* Left Medium Density */}
-      <div className="space-y-2 group p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">
-            Medium 1 Density
-          </label>
-          <FaWeightHanging className="text-cyan-500"/>
+    {/* Frequency Source */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-blue-400 transition-colors">
+            Source Frequency
+        </label>
+        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+          <span className="text-sm font-mono text-blue-400 font-bold">
+            {values.frequency.toFixed(1)} <span className="text-zinc-500 text-xs">Hz</span>
+          </span>
         </div>
-        <input 
-          type="range" min="1" max="10" step="0.5"
-          value={values.density1}
-          onChange={(e) => setValue('density1', parseFloat(e.target.value))}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400"
-        />
-        <div className="text-right text-xs font-mono text-zinc-500">{values.density1.toFixed(1)} kg/m</div>
       </div>
+      <input 
+        type="range" min="0.1" max="5" step="0.1"
+        value={values.frequency}
+        onChange={(e) => setValue('frequency', parseFloat(e.target.value))}
+        className="glow-range accent-blue-500"
+      />
+      <p className="text-[10px] text-zinc-600">How fast your hand shakes the rope.</p>
+    </div>
 
-      {/* Global Tension */}
-      <div className="space-y-2 group p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">
+    {/* Density (The Medium) */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-amber-600 transition-colors">
+            Medium Density
+        </label>
+        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+          <span className="text-sm font-mono text-amber-600 font-bold">
+            {values.density.toFixed(1)} <span className="text-zinc-500 text-xs">kg/m</span>
+          </span>
+        </div>
+      </div>
+      <input 
+        type="range" min="1" max="10" step="0.5"
+        value={values.density}
+        onChange={(e) => setValue('density', parseFloat(e.target.value))}
+        className="glow-range accent-amber-600"
+      />
+      <p className="text-[10px] text-zinc-600">Thickness of the rope. Heavy = Slow.</p>
+    </div>
+
+    {/* Tension (The Force) */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-red-500 transition-colors">
             Rope Tension
-          </label>
-          <FaBolt className="text-yellow-500"/>
+        </label>
+        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+          <span className="text-sm font-mono text-red-500 font-bold">
+            {values.tension.toFixed(0)} <span className="text-zinc-500 text-xs">N</span>
+          </span>
         </div>
-        <input 
-          type="range" min="1.0" max="5.0" step="0.1"
-          value={values.tension}
-          onChange={(e) => setValue('tension', parseFloat(e.target.value))}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-yellow-500 hover:accent-yellow-400"
-        />
-        <div className="text-right text-xs font-mono text-zinc-500">{values.tension.toFixed(1)} N</div>
       </div>
-
-      {/* Right Medium Density */}
-      <div className="space-y-2 group p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-[10px] font-bold text-pink-400 uppercase tracking-widest">
-            Medium 2 Density
-          </label>
-          <FaWeightHanging className="text-pink-500"/>
-        </div>
-        <input 
-          type="range" min="1" max="10" step="0.5"
-          value={values.density2}
-          onChange={(e) => setValue('density2', parseFloat(e.target.value))}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-pink-500 hover:accent-pink-400"
-        />
-        <div className="text-right text-xs font-mono text-zinc-500">{values.density2.toFixed(1)} kg/m</div>
-      </div>
-
+      <input 
+        type="range" min="1" max="20" step="1"
+        value={values.tension}
+        onChange={(e) => setValue('tension', parseFloat(e.target.value))}
+        className="glow-range accent-red-500"
+      />
+      <p className="text-[10px] text-zinc-600">How hard you pull the rope. Tight = Fast.</p>
     </div>
 
-    {/* Action Bar */}
-    <div className="flex justify-center gap-4 border-t border-zinc-800 pt-6">
-      <button
-        // @ts-ignore
-        onClick={() => window.spawnMediumPulse && window.spawnMediumPulse()}
-        className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg text-white font-bold shadow-lg hover:shadow-cyan-500/20 hover:scale-105 transition-all"
-      >
-        <FaExchangeAlt /> FIRE PULSE
-      </button>
-
-      <button
-        // @ts-ignore
-        onClick={() => window.resetMedium && window.resetMedium()}
-        className="flex items-center gap-2 px-6 py-3 bg-zinc-800 text-zinc-400 rounded-lg font-bold hover:bg-zinc-700 hover:text-white transition-all"
-      >
-        <FaRedo /> Reset
-      </button>
-    </div>
-    
-    <div className="text-center text-[10px] text-zinc-600 font-mono mt-2">
-      v = √(Tension / Density) • Higher Density = Slower Wave
+    {/* Amplitude (Visuals) */}
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-end">
+        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">
+            Amplitude
+        </label>
+        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+          <span className="text-sm font-mono text-green-400 font-bold">
+            {values.amplitude.toFixed(0)} <span className="text-zinc-500 text-xs">px</span>
+          </span>
+        </div>
+      </div>
+      <input 
+        type="range" min="0" max="150" step="5"
+        value={values.amplitude}
+        onChange={(e) => setValue('amplitude', parseFloat(e.target.value))}
+        className="glow-range accent-green-500"
+      />
     </div>
 
   </div>
@@ -309,16 +250,11 @@ const renderMediumControls = ({ values, setValue }: {
 
 // --- 5. Export ---
 export const SIMULATION_6 = {
-  title: 'Wave Speed & The Medium',
-  initialValues: { 
-    density1: 1.0, 
-    density2: 4.0, 
-    tension: 3.0,
-    pulseWidth: 6
-  },
-  achievements: achievements,
-  renderSimulation: ({ values }: { values: MediumState }) => (
-    <MediumCanvas values={values} />
-  ),
-  renderControls: renderMediumControls
+    title: 'The Sludge Runner',
+    initialValues: { frequency: 1, amplitude: 50, density: 5, tension: 10 },
+    achievements: achievements,
+    renderSimulation: ({ values }: { values: MediumState }) => (
+        <MediumCanvas values={values} />
+    ),
+    renderControls: renderControls
 };
