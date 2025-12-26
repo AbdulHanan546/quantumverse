@@ -370,13 +370,14 @@ OUTPUT FORMAT (VERY STRICT):
   - \`true-false\`: \`{ id, type: 'true-false', statement, isTrue:  boolean, explanation }\`
   - \`summary\`: \`{ id, type: 'summary', title?, recap: string[] }\`
   - \`outro\`: \`{ id, type: 'outro', title, text }\`
+  - \`simulation\`: \`{ id, type: 'simulation', title, description, run: <function name> }\`
 - Array length: aim for 8-12 slides. Start with \`intro\`, include 1-2 quick checks (\`quiz\` or \`true-false\`), include \`summary\` and \`outro\` at the end.
 - Language: use very simple short sentences, analogies, step-by-step. Keep each bullet to one short sentence. 
 
-SAFETY: Do not generate external network calls or non-deterministic code. 
+SAFETY: Do not generate external network calls or non-deterministic code. Simulation code should only draw to the given \`canvas\` using 2D context and use \`requestAnimationFrame\` + return a cleanup that cancels it.
 
 ADDITIONAL OUTPUT (JSON BACKUP):
-- In addition to the JS/TS module, include a JSON-only backup of the slides between the markers \`/* SLIDES_JSON_START */\` and \`/* SLIDES_JSON_END */\` (exact markers). The JSON backup must be a valid JSON array that mirrors the exported slides.`
+- In addition to the JS/TS module, include a JSON-only backup of the slides between the markers \`/* SLIDES_JSON_START */\` and \`/* SLIDES_JSON_END */\` (exact markers). The JSON backup must be a valid JSON array that mirrors the exported slides  but uses a \`simulationCode\` string field (the function source) instead of function references. This JSON block is used by the server to parse safely.`
 }
 
 function buildUserPrompt(topic: string, hints ? : string) {
