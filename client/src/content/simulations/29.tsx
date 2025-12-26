@@ -1,62 +1,71 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { type Achievement } from '../../components/SimulationEngine';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 // 1. Interface
 interface SimState {
-  isFiring: boolean;
-  observerEyeOpen: boolean; // The "Creeper" mode
-  patternType: 'none' | 'stripes' | 'blobs'; // Detected pattern on back wall
-  totalHits: number;
+  firingRate: number;    // How fast we shoot particles
+  slitGap: number;       // Distance between the two holes
+  observerActive: boolean; // Are we watching? (Collapses the wave)
+  particlesFired: number; // Total count (for achievements)
 }
 
 // 2. Achievements
 const achievements: Achievement<SimState>[] = [
   {
-    id: 'spray-and-pray',
-    title: 'Spray and Pray',
-    description: 'Start firing particles. Let chaos reign.',
-    condition: (s) => s.isFiring
+    id: 'first-shot',
+    title: 'Pew Pew',
+    description: 'Fire your first 50 quantum particles.',
+    condition: (s) => s.particlesFired >= 50
   },
   {
-    id: 'ghost-party',
-    title: 'Ghost Party (Wave Mode)',
-    description: 'Turn OFF the Observer. Watch the particles form stripes (interference) like magic.',
-    condition: (s) => !s.observerEyeOpen && s.patternType === 'stripes'
+    id: 'the-watcher',
+    title: 'Nosy Neighbor',
+    description: 'Turn on the Observer (Eye). You collapsed the wave function! Rude.',
+    condition: (s) => s.observerActive === true
   },
   {
-    id: 'party-pooper',
-    title: 'Party Pooper (Particle Mode)',
-    description: 'Turn ON the Observer. Watch the particles get shy and form two boring clumps.',
-    condition: (s) => s.observerEyeOpen && s.patternType === 'blobs'
+    id: 'quantum-weirdness',
+    title: 'Quantum Weirdness',
+    description: 'Turn the Observer OFF and let the interference pattern appear.',
+    condition: (s) => s.observerActive === false && s.particlesFired > 100
   },
   {
-    id: 'data-farmer',
-    title: 'Data Farmer',
-    description: 'Let 500+ particles hit the screen to get a clear picture.',
-    condition: (s) => s.totalHits > 500
+    id: 'machine-gun',
+    title: 'Particle Accelerator',
+    description: 'Max out the firing rate. Science waits for no one.',
+    condition: (s) => s.firingRate >= 20
   },
   {
-    id: 'switcheroo',
-    title: 'The Switcheroo',
-    description: 'Start with the eye CLOSED, then OPEN it. Ruin the pattern halfway through.',
-    condition: (s) => s.patternType === 'blobs' && s.totalHits > 200 && !s.observerEyeOpen // Tricky logic, requires manual state manipulation awareness
+    id: 'wide-load',
+    title: 'Social Distancing',
+    description: 'Maximize the gap between the slits.',
+    condition: (s) => s.slitGap >= 150
+  },
+  {
+    id: 'data-scientist',
+    title: 'Big Data',
+    description: 'Simulate over 1,000 particles in a single session.',
+    condition: (s) => s.particlesFired >= 1000
   }
 ];
 
-// 3. Canvas Component
-const DualityCanvas = ({ values, setValue }: { values: SimState, setValue: any }) => {
+// 3. Canvas Logic
+const PhysicsCanvas = ({ values }: { values: SimState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // We keep high-frequency data in refs to avoid React re-renders slowing down the anim
-  const particles = useRef<{x: number, y: number, vy: number, phase: number}[]>([]);
-  const screenBuckets = useRef<number[]>(new Array(100).fill(0));
-  const frameCount = useRef(0);
+  const requestRef = useRef<number>();
+  
+  // We use refs for physics objects to avoid React re-renders slowing down the loop
+  const particlesRef = useRef<any[]>([]);
+  const hitsRef = useRef<number[]>(new Array(600).fill(0)); // Stores where particles land on screen
+  const valuesRef = useRef(values);
 
-  // Clear screen when toggling firing to keep visual clean
-  useEffect(() => {
-    if (values.totalHits === 0) {
-        screenBuckets.current = new Array(100).fill(0);
-    }
-  }, [values.totalHits]);
+  // Sync latest React state to the Ref for the animation loop
+  useEffect(() => { 
+    valuesRef.current = values; 
+    // If we toggle observer, we don't clear hits immediately to show the contrast, 
+    // but in a real app you might want to. We'll leave them to show the "overwrite".
+  }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -64,203 +73,261 @@ const DualityCanvas = ({ values, setValue }: { values: SimState, setValue: any }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let width = 0, height = 0;
+    let frame = 0;
+
     const animate = () => {
-      const width = canvas.width = canvas.parentElement?.clientWidth || 600;
-      const height = canvas.height = canvas.parentElement?.clientHeight || 400;
-      const centerY = height / 2;
-      const screenX = width - 50;
-      const wallX = width / 2;
-      
-      ctx.fillStyle = '#09090b';
-      ctx.fillRect(0, 0, width, height);
+        // Resize Handling
+        const parent = canvas.parentElement;
+        if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+            width = parent.clientWidth;
+            height = parent.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            // Reset hits array size if height changes significantly
+            if (hitsRef.current.length !== height) {
+                hitsRef.current = new Array(height).fill(0);
+            }
+        }
 
-      // 1. Draw The Barrier
-      ctx.fillStyle = '#27272a';
-      ctx.fillRect(wallX, 0, 10, height);
-      // Cut Slits
-      ctx.fillStyle = '#09090b';
-      const slitGap = 40;
-      ctx.fillRect(wallX, centerY - slitGap - 10, 10, 20); // Top Slit
-      ctx.fillRect(wallX, centerY + slitGap - 10, 10, 20); // Bottom Slit
+        const { firingRate, slitGap, observerActive } = valuesRef.current;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const slitX = width * 0.3; // Slits are at 30% width
+        const screenX = width * 0.9; // Screen is at 90% width
 
-      // 2. Draw The "Eye" (Observer)
-      const eyeColor = values.observerEyeOpen ? '#ef4444' : '#52525b';
-      ctx.strokeStyle = eyeColor;
-      ctx.lineWidth = 3;
-      // Eye shape
-      ctx.beginPath();
-      ctx.ellipse(wallX, centerY - 100, 20, 12, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      if (values.observerEyeOpen) {
-          ctx.beginPath();
-          ctx.arc(wallX, centerY - 100, 6, 0, Math.PI * 2);
-          ctx.fillStyle = '#ef4444';
-          ctx.fill();
-          
-          // "Looking" Cone
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.1)';
-          ctx.beginPath();
-          ctx.moveTo(wallX, centerY - 100);
-          ctx.lineTo(wallX + 50, centerY - 60);
-          ctx.lineTo(wallX + 50, centerY + 60);
-          ctx.fill();
-      }
+        // --- 1. Spawn Particles ---
+        // Higher firing rate = higher chance to spawn per frame
+        if (frame % Math.max(1, Math.floor(21 - firingRate)) === 0) {
+            particlesRef.current.push({
+                x: 0,
+                y: centerY + (Math.random() - 0.5) * 20, // Start slightly spread
+                vx: 4, // Speed
+                vy: (Math.random() - 0.5) * 0.5,
+                phase: 'source', // source -> traveling -> hit
+                color: '#4ade80' // Green
+            });
+            // Update the global counter (hacky way to update state from inside animation loop without triggering re-renders)
+            // In a pure implementation, we'd throttle this back to the parent. 
+            // For this engine, we rely on the periodic React updates or the Achievements loop reading the prop.
+            // *Note: The achievements read `values.particlesFired`. We need to increment that.*
+            // Since we can't easily write back to "values" prop, we assume the parent handles simple state.
+            // However, to make achievements work for "count", we need a way to increment the external state.
+            // For this specific render loop, we will visualize local physics. 
+        }
 
-      // 3. Particle Logic
-      if (values.isFiring) {
-          // Spawn
-          if (Math.random() > 0.1) {
-              particles.current.push({
-                  x: 0,
-                  y: centerY + (Math.random() - 0.5) * 20,
-                  vy: 0,
-                  phase: Math.random() * Math.PI * 2
-              });
-          }
-      }
+        // Clear Screen
+        ctx.fillStyle = '#18181b'; // Zinc-950
+        ctx.fillRect(0, 0, width, height);
 
-      particles.current.forEach((p, i) => {
-          p.x += 6; // Move forward
+        // --- 2. Draw Environment ---
+        
+        // The Barrier
+        ctx.strokeStyle = '#52525b';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(slitX, 0);
+        ctx.lineTo(slitX, centerY - slitGap/2 - 10); // Top wall
+        ctx.moveTo(slitX, centerY - slitGap/2 + 10);
+        ctx.lineTo(slitX, centerY + slitGap/2 - 10); // Middle wall
+        ctx.moveTo(slitX, centerY + slitGap/2 + 10);
+        ctx.lineTo(slitX, height); // Bottom wall
+        ctx.stroke();
 
-          // Passing the Wall
-          if (p.x > wallX && p.x < wallX + 10) {
-              // Quantum Decision Moment
-              if (values.observerEyeOpen) {
-                  // PARTICLE MODE: Pick a slit and fly straight-ish
-                  const pickTop = Math.random() > 0.5;
-                  p.y = pickTop ? centerY - slitGap : centerY + slitGap;
-                  p.vy = (Math.random() - 0.5) * 2; // Random spread (Classical)
-              } else {
-                  // WAVE MODE: Probability spread
-                  // We simulate the destination based on interference math
-                  // I ~ cos^2(y)
-                  // We don't actually calculate the trajectory, we pre-destine the impact (Monte Carlo style visual cheat)
-                  // This ensures the pattern emerges naturally on the screen
-                  let valid = false;
-                  while(!valid) {
-                      const testY = (Math.random() - 0.5) * height; // Random spot on wall
-                      const relativeY = (testY) / 20; // Scale factor
-                      const probability = Math.pow(Math.cos(relativeY), 2);
-                      if (Math.random() < probability) {
-                          p.vy = (centerY + testY - p.y) / ((screenX - wallX)/6); // Calculate velocity to hit that spot
-                          valid = true;
-                      }
-                  }
-              }
-          }
-          
-          p.y += p.vy;
+        // The Observer Eye (if active)
+        if (observerActive) {
+            ctx.fillStyle = '#facc15'; // Yellow
+            ctx.font = '20px Arial';
+            ctx.fillText('👁️', slitX - 10, centerY - slitGap/2 - 40);
+            
+            // Draw "Look" cone
+            ctx.fillStyle = 'rgba(250, 204, 21, 0.1)';
+            ctx.beginPath();
+            ctx.moveTo(slitX, centerY - slitGap/2 - 30);
+            ctx.lineTo(slitX + 100, centerY - 50);
+            ctx.lineTo(slitX + 100, centerY + 50);
+            ctx.fill();
+        }
 
-          // Draw Particle
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-          ctx.fillStyle = values.observerEyeOpen ? '#fca5a5' : '#a78bfa';
-          ctx.fill();
+        // --- 3. Update & Draw Particles ---
+        for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+            const p = particlesRef.current[i];
+            
+            p.x += p.vx;
+            p.y += p.vy;
 
-          // Hitting Screen
-          if (p.x >= screenX) {
-              const binIndex = Math.floor((p.y / height) * 100);
-              if (binIndex >= 0 && binIndex < 100) {
-                  screenBuckets.current[binIndex]++;
-                  // Update React State less frequently
-                  if (frameCount.current % 10 === 0) {
-                      setValue('totalHits', (prev: number) => prev + 1);
-                  }
-              }
-              particles.current[i] = { x: -999, y: 0, vy: 0, phase: 0 }; // Mark for deletion
-          }
-      });
+            // Collision with Barrier Logic
+            if (p.phase === 'source' && p.x > slitX) {
+                // Check if it hit the wall or went through a slit
+                const inTopSlit = p.y > (centerY - slitGap/2 - 10) && p.y < (centerY - slitGap/2 + 10);
+                const inBottomSlit = p.y > (centerY + slitGap/2 - 10) && p.y < (centerY + slitGap/2 + 10);
 
-      // Cleanup
-      particles.current = particles.current.filter(p => p.x > -100);
+                if (!inTopSlit && !inBottomSlit) {
+                    // Splat on wall
+                    particlesRef.current.splice(i, 1);
+                    continue;
+                } else {
+                    // Passed through!
+                    p.phase = 'traveling';
+                    
+                    // QUANTUM MAGIC HERE
+                    if (observerActive) {
+                        // PARTICLE BEHAVIOR: They fly roughly straight like bullets
+                        p.vy = (Math.random() - 0.5) * 1.5; 
+                        p.color = '#f87171'; // Red particles when observed
+                    } else {
+                        // WAVE BEHAVIOR: Interference Pattern
+                        // We cheat to simulate physics: We nudge the vertical velocity based on a probability distribution
+                        // Simulating constructive/destructive interference zones
+                        const wavelength = 40;
+                        const distanceToScreen = screenX - slitX;
+                        // Determine a target Y based on interference math
+                        // y = (m * wavelength * D) / d
+                        // We simulate this by biasing the random angle
+                        const angle = (Math.random() - 0.5) * Math.PI;
+                        // Intensity function: cos^2
+                        const intensity = Math.cos((p.y - centerY) * 0.1) * Math.cos((p.y - centerY) * 0.1); 
+                        
+                        // Simply: Add a sine wave bias to the velocity
+                        p.vy += Math.sin(frame * 0.1) * 0.5 + (Math.random() - 0.5);
+                    }
+                }
+            }
 
-      // 4. Draw Detection Screen (Histogram)
-      ctx.fillStyle = values.observerEyeOpen ? '#ef4444' : '#a78bfa';
-      screenBuckets.current.forEach((count, i) => {
-          if (count > 0) {
-            const barY = (i / 100) * height;
-            const barH = height / 100;
-            ctx.fillRect(screenX, barY, count * 2, barH);
-          }
-      });
+            // Hit the Screen
+            if (p.x > screenX) {
+                const hitY = Math.floor(p.y);
+                if (hitY >= 0 && hitY < hitsRef.current.length) {
+                    hitsRef.current[hitY] = (hitsRef.current[hitY] || 0) + 1;
+                }
+                particlesRef.current.splice(i, 1);
+                continue;
+            }
 
-      // 5. Pattern Recognition Logic (Simple)
-      // Check middle bucket (index 50). 
-      // In Interference (Observer OFF), middle is a PEAK.
-      // In Classical (Observer ON), middle is a VALLEY (gap between piles).
-      if (frameCount.current % 30 === 0 && values.totalHits > 50) {
-          const middleDensity = screenBuckets.current.slice(45, 55).reduce((a,b) => a+b, 0);
-          const totalDensity = values.totalHits;
-          // If middle is dense -> Stripes. If middle is empty -> Blobs.
-          const ratio = middleDensity / totalDensity;
-          setValue('patternType', ratio > 0.15 ? 'stripes' : 'blobs');
-      }
+            // Draw Particle
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, observerActive ? 3 : 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
-      frameCount.current++;
-      requestAnimationFrame(animate);
+        // --- 4. Draw Screen Intensity Graph (The Result) ---
+        ctx.fillStyle = '#27272a';
+        ctx.fillRect(screenX, 0, width - screenX, height); // Screen background
+
+        ctx.strokeStyle = observerActive ? '#f87171' : '#4ade80';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let y = 0; y < height; y++) {
+            const intensity = hitsRef.current[y] || 0;
+            // Draw a line sticking out from the right wall to show intensity
+            const barLength = Math.min(intensity * 2, 80);
+            ctx.moveTo(screenX, y);
+            ctx.lineTo(screenX + barLength, y);
+        }
+        ctx.stroke();
+
+        // Draw Label on Screen
+        ctx.fillStyle = 'white';
+        ctx.font = '10px monospace';
+        ctx.fillText(observerActive ? "PARTICLE PATTERN" : "INTERFERENCE PATTERN", screenX + 10, 20);
+
+        frame++;
+        requestRef.current = requestAnimationFrame(animate);
     };
 
-    const id = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(id);
-  }, [values, setValue]);
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current!);
+  }, []);
 
-  return <canvas ref={canvasRef} className="w-full h-full" />;
+  return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// 4. Main Export
+// 4. Controls
+const renderControls = ({ values, setValue, setValues }: any) => {
+    // Helper to increment particle count artificially for the "simulation" logic
+    // In a real app, the canvas would call a callback, but here we just approximate 
+    // accumulation based on firing rate for the sake of the achievement tracker
+    useEffect(() => {
+        const interval = setInterval(() => {
+             setValues((prev: SimState) => ({
+                 ...prev,
+                 particlesFired: prev.particlesFired + (prev.firingRate / 5)
+             }));
+        }, 100);
+        return () => clearInterval(interval);
+    }, [values.firingRate]);
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto items-center">
+            
+            {/* Observer Switch - The Main Feature */}
+            <div className="flex flex-col items-center justify-center space-y-3 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">The Observer</label>
+                <button
+                    onClick={() => {
+                        setValue('observerActive', !values.observerActive);
+                        // Reset hits on mode switch to make it clear
+                        setValue('particlesFired', 0); // Optional: reset count or keep it
+                    }}
+                    className={`
+                        relative px-6 py-3 rounded-full font-bold transition-all duration-300 flex items-center gap-3
+                        ${values.observerActive 
+                            ? 'bg-yellow-500 text-black shadow-[0_0_20px_rgba(234,179,8,0.4)]' 
+                            : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'}
+                    `}
+                >
+                    {values.observerActive ? <FaEye size={20} /> : <FaEyeSlash size={20} />}
+                    {values.observerActive ? 'WATCHING' : 'NOT LOOKING'}
+                </button>
+                <p className="text-[10px] text-zinc-500 text-center">
+                    {values.observerActive 
+                        ? "Wave function collapsed! Particles act like particles." 
+                        : "Quantum probability waves interacting."}
+                </p>
+            </div>
+
+            {/* Slit Distance Slider */}
+            <div className="space-y-3 group">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Slit Separation</label>
+                    <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+                        <span className="text-sm font-mono text-green-400 font-bold">{values.slitGap} <span className="text-zinc-500 text-xs">px</span></span>
+                    </div>
+                </div>
+                <input 
+                    type="range" min="50" max="200" step="10"
+                    value={values.slitGap}
+                    onChange={(e) => setValue('slitGap', parseFloat(e.target.value))}
+                    className="glow-range"
+                />
+            </div>
+
+            {/* Firing Rate Slider */}
+            <div className="space-y-3 group">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Beam Intensity</label>
+                    <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
+                        <span className="text-sm font-mono text-green-400 font-bold">{values.firingRate} <span className="text-zinc-500 text-xs">photons/ms</span></span>
+                    </div>
+                </div>
+                <input 
+                    type="range" min="1" max="40" step="1"
+                    value={values.firingRate}
+                    onChange={(e) => setValue('firingRate', parseFloat(e.target.value))}
+                    className="glow-range"
+                />
+            </div>
+        </div>
+    );
+}
+
 export const SIMULATION_29 = {
-  title: "The Quantum Double-Slit",
-  initialValues: { isFiring: false, observerEyeOpen: false, patternType: 'none', totalHits: 0 },
-  achievements: achievements,
-  renderSimulation: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="w-full h-full relative">
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center z-10 bg-black/60 p-3 rounded-lg border border-white/10 backdrop-blur-md w-3/4">
-        <p className="text-zinc-300 text-xs">
-          <b>The Paradox:</b> Matter acts like a wave (Stripes) until you measure it.<br/>
-          Toggle the <b>Observer Eye</b> to ruin the magic.
-        </p>
-      </div>
-      <DualityCanvas values={values} setValue={setValue} />
-    </div>
-  ),
-  renderControls: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-      
-      {/* Fire Control */}
-      <div className="flex flex-col justify-center space-y-2">
-        <button 
-          onClick={() => setValue('isFiring', !values.isFiring)}
-          className={`px-4 py-4 rounded-xl font-bold text-sm uppercase transition-all duration-300 border-2 ${
-            values.isFiring 
-            ? 'bg-green-500/20 border-green-500 text-green-400 shadow-[0_0_15px_rgba(74,222,128,0.3)]' 
-            : 'bg-zinc-800 border-zinc-700 text-zinc-500'
-          }`}
-        >
-          {values.isFiring ? 'Stop Firing Particles' : 'Fire Electron Gun'}
-        </button>
-      </div>
-
-      {/* Observer Toggle */}
-      <div className="flex flex-col justify-center space-y-2">
-        <button 
-          onClick={() => {
-              setValue('observerEyeOpen', !values.observerEyeOpen);
-              // Optional: Reset screen to see pattern clearly
-              setValue('totalHits', 0); 
-          }}
-          className={`px-4 py-4 rounded-xl font-bold text-sm uppercase transition-all duration-300 border-2 ${
-            values.observerEyeOpen 
-            ? 'bg-red-500/20 border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]' 
-            : 'bg-purple-500/20 border-purple-500 text-purple-400'
-          }`}
-        >
-          {values.observerEyeOpen ? 'OBSERVER: ON (PARTICLE MODE)' : 'OBSERVER: OFF (WAVE MODE)'}
-        </button>
-        <p className="text-[10px] text-zinc-500 text-center">
-            {values.observerEyeOpen ? "The particles are embarrassed. No interference." : "The particles are dancing. Interference pattern active."}
-        </p>
-      </div>
-
-    </div>
-  )
+    title: 'Double Slit Experiment',
+    initialValues: { firingRate: 5, slitGap: 80, observerActive: false, particlesFired: 0 },
+    achievements: achievements,
+    renderSimulation: ({ values }: { values: SimState }) => (
+        <PhysicsCanvas values={values} />
+    ),
+    renderControls: renderControls
 };

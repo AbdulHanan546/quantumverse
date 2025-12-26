@@ -1,52 +1,58 @@
 import React, { useEffect, useRef } from 'react';
 import { type Achievement } from '../../components/SimulationEngine';
+import { FaRunning, FaWeightHanging, FaGhost, FaMeteor } from 'react-icons/fa';
 
-// 1. Interface
-interface SimState {
-  velocity: number;
-  mass: number;
-  showWave: boolean;
-  wavelength: number;
+// --- 1. Interface ---
+interface DeBroglieState {
+  mass: number;     // 1 to 100 (1 = Electron, 100 = Bowling Ball)
+  velocity: number; // 1 to 50
 }
 
-// 2. Achievements
-const achievements: Achievement<SimState>[] = [
+// --- 2. Achievements ---
+const achievements: Achievement<DeBroglieState>[] = [
   {
-    id: 'going-subatomic',
-    title: 'Subatomic Reality',
-    description: 'Reduce mass to the minimum to see the electron become noticeably wavy.',
-    condition: (s) => s.mass <= 1.5
+    id: 'ghost-mode',
+    title: 'Quantum Ghost',
+    description: 'Create a massive wavelength by being tiny (m < 5) and slow (v < 5).',
+    condition: (s) => s.mass < 5 && s.velocity < 5
   },
   {
-    id: 'high-speed-blur',
-    title: 'High Speed Blur',
-    description: 'Max out velocity. Notice how the waves get tighter (shorter wavelength).',
-    condition: (s) => s.velocity >= 9.0
+    id: 'classic-physics',
+    title: 'Newton is Happy',
+    description: 'Crush the wave nature! Max out Mass and Velocity so it goes in a straight line.',
+    condition: (s) => s.mass > 90 && s.velocity > 40
   },
   {
-    id: 'the-heavy-particle',
-    title: 'The Bowling Ball Effect',
-    description: 'Set mass to maximum. The "wave" becomes almost a straight line.',
-    condition: (s) => s.mass >= 9.0
+    id: 'middle-ground',
+    title: 'Identity Crisis',
+    description: 'Make the particle unsure if it is a wave or a rock (Mass ~50, Velocity ~25).',
+    condition: (s) => Math.abs(s.mass - 50) < 5 && Math.abs(s.velocity - 25) < 5
   },
   {
-    id: 'quantum-detective',
-    title: 'Quantum Detective',
-    description: 'Toggle the wave visualization to reveal the hidden math.',
-    condition: (s) => s.showWave === true
+    id: 'hyper-speed',
+    title: 'Warp Speed',
+    description: 'Max out velocity regardless of mass.',
+    condition: (s) => s.velocity === 50
   },
   {
-    id: 'perfect-balance',
-    title: 'Harmonic Duality',
-    description: 'Find a balance where mass and velocity both equal 5.',
-    condition: (s) => s.mass === 5 && s.velocity === 5
+    id: 'heavy-weight',
+    title: 'Chonky Particle',
+    description: 'Max out the mass. It takes a lot to make this thing wave.',
+    condition: (s) => s.mass === 100
   }
 ];
 
-// 3. Canvas Component
-const DeBroglieCanvas = ({ values, setValue }: { values: SimState, setValue: any }) => {
+// --- 3. Canvas ---
+const WaveCanvas = ({ values }: { values: DeBroglieState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const timeRef = useRef<number>(0);
+  const requestRef = useRef<number>();
+  
+  // Ref to hold current values for the animation loop
+  const valuesRef = useRef(values);
+  useEffect(() => { valuesRef.current = values; }, [values]);
+
+  // We need to track "real" X position for the sine wave math
+  const distanceRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -54,131 +60,215 @@ const DeBroglieCanvas = ({ values, setValue }: { values: SimState, setValue: any
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let width = 0, height = 0;
+    
+    // Trail history: Defined INSIDE this effect so it persists while dragging sliders
+    // because this effect only runs ONCE on mount now.
+    const trail: {x: number, y: number, alpha: number}[] = [];
+
     const animate = () => {
-      const width = canvas.width = canvas.parentElement?.clientWidth || 600;
-      const height = canvas.height = canvas.parentElement?.clientHeight || 400;
+      // Resize
+      const parent = canvas.parentElement;
+      if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+        width = parent.clientWidth;
+        height = parent.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      // Read from REF to get latest values without resetting the loop
+      const { mass, velocity } = valuesRef.current;
       const centerY = height / 2;
 
-      ctx.fillStyle = '#09090b';
+      // PHYSICS MATH:
+      // De Broglie Wavelength lambda = h / (mv)
+      // We use an arbitrary constant '3000' to make it look good on screen
+      const momentum = mass * velocity;
+      const wavelength = 3000 / Math.max(1, momentum); 
+      
+      // Amplitude: 
+      // In QM, amplitude relates to probability. Here we visualize "uncertainty" 
+      // by making the wave taller when momentum is low.
+      const amplitude = Math.min(100, 4000 / momentum);
+
+      // Update position
+      const moveSpeed = velocity * 0.15;
+      distanceRef.current += moveSpeed;
+      
+      // Calculate current screen position
+      // We wrap the X so it stays on screen, but we calculate Y based on total distance
+      const screenX = (distanceRef.current % (width + 100)) - 50;
+      const screenY = centerY + Math.sin(distanceRef.current * (2 * Math.PI / wavelength)) * amplitude;
+
+      // Clear Screen
+      ctx.fillStyle = '#18181b'; 
       ctx.fillRect(0, 0, width, height);
 
-      // Physics: lambda = h / (m * v)
-      // h is a constant (we'll use a visual scaler)
-      const visualH = 2000;
-      const currentWavelength = visualH / (values.mass * values.velocity);
+      // Draw Grid (The "Classical" Straight Lines)
+      ctx.strokeStyle = '#27272a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      // Horizontal center line
+      ctx.moveTo(0, centerY); ctx.lineTo(width, centerY);
+      // Vertical grid lines
+      for(let x=0; x<width; x+=50) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
+      ctx.stroke();
+
+      // Manage Trail
+      trail.push({ x: screenX, y: screenY, alpha: 1.0 });
+      if (trail.length > 50) trail.shift(); // Keep last 50 points
+
+      // Draw Trail (The Wave Function)
+      const isWave = momentum < 500;
+      const trailColor = isWave ? '132, 204, 22' : '59, 130, 246'; // Lime vs Blue
       
-      // Update state for achievements
-      setValue('wavelength', currentWavelength);
-
-      timeRef.current += 0.05;
-
-      // Draw the "Wave" (The Probability Cloud)
-      if (values.showWave) {
+      ctx.beginPath();
+      for (let i = 0; i < trail.length - 1; i++) {
+        const pt = trail[i];
+        const nextPt = trail[i+1];
+        
+        // Don't draw line if it wrapped around screen (from right edge to left edge)
+        if (nextPt.x < pt.x) continue;
+        
+        ctx.strokeStyle = `rgba(${trailColor}, ${i / trail.length})`;
+        ctx.lineWidth = 3 + (isWave ? 2 : 0); // Thicker line for waves
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(96, 165, 250, 0.4)';
-        ctx.lineWidth = 2;
-        for (let x = 0; x < width; x++) {
-          const y = centerY + Math.sin((x / currentWavelength) + timeRef.current) * (30 / values.mass);
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
+        ctx.moveTo(pt.x, pt.y);
+        ctx.lineTo(nextPt.x, nextPt.y);
         ctx.stroke();
       }
 
-      // Draw the "Particle" (The actual object)
-      const particleX = (timeRef.current * 50) % width;
-      const particleY = centerY + (values.showWave ? Math.sin((particleX / currentWavelength) + timeRef.current) * (30 / values.mass) : 0);
-      
+      // Draw Particle
       ctx.shadowBlur = 15;
-      ctx.shadowColor = '#60a5fa';
-      ctx.fillStyle = '#60a5fa';
+      ctx.shadowColor = isWave ? '#84cc16' : '#3b82f6';
+      ctx.fillStyle = '#ffffff';
       
-      const size = Math.max(2, values.mass * 3);
       ctx.beginPath();
-      ctx.arc(particleX, particleY, size, 0, Math.PI * 2);
+      // Size changes with mass
+      const size = 5 + (mass / 3); 
+      ctx.arc(screenX, screenY, size, 0, Math.PI * 2);
       ctx.fill();
 
-      // Label
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#71717a';
-      ctx.font = '10px monospace';
-      ctx.fillText(`λ ≈ ${currentWavelength.toFixed(0)} units`, particleX - 20, particleY - size - 10);
+      // Draw "Wobble" Radius (Heisenberg Uncertainty hint)
+      if (isWave) {
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(132, 204, 22, 0.3)`;
+          ctx.lineWidth = 1;
+          ctx.arc(screenX, screenY, size + amplitude/2, 0, Math.PI * 2);
+          ctx.stroke();
+      }
 
-      requestAnimationFrame(animate);
+      requestRef.current = requestAnimationFrame(animate);
     };
 
-    const id = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(id);
-  }, [values, setValue]);
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current!);
+  }, []); // Dependency array is empty! Loop runs once and persists.
 
-  return <canvas ref={canvasRef} className="w-full h-full" />;
+  return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// 4. Main Export
+// --- 4. Controls ---
+const RenderControls = ({ values, setValue }: { values: DeBroglieState, setValue: any }) => {
+    
+    const momentum = values.mass * values.velocity;
+    const isWave = momentum < 500; // Threshold for text feedback
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto items-center">
+            
+            {/* Mass Slider */}
+            <div className="space-y-4 group">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                        <FaWeightHanging className="text-purple-500" /> Mass ($m$)
+                    </label>
+                    <div className="bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
+                        <span className="text-sm font-mono text-purple-400 font-bold">
+                            {values.mass === 1 ? 'Electron' : values.mass === 100 ? 'Bowling Ball' : values.mass} 
+                            <span className="text-zinc-600 text-[10px] ml-1">amu</span>
+                        </span>
+                    </div>
+                </div>
+                <input 
+                    type="range" min="1" max="100" step="1"
+                    value={values.mass}
+                    onChange={(e) => setValue('mass', parseFloat(e.target.value))}
+                    className="glow-range"
+                    style={{'--range-color': '#a855f7'} as any}
+                />
+                 <p className="text-[10px] text-zinc-500">
+                    Lower mass = More wave-like. Heavy things don't like to wiggle.
+                </p>
+            </div>
+
+            {/* Velocity Slider */}
+            <div className="space-y-4 group">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                         <FaRunning className="text-orange-500" /> Velocity ($v$)
+                    </label>
+                    <div className="bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
+                        <span className="text-sm font-mono text-orange-400 font-bold">
+                            {values.velocity} <span className="text-zinc-600 text-[10px] ml-1">m/s</span>
+                        </span>
+                    </div>
+                </div>
+                <input 
+                    type="range" min="1" max="50" step="1"
+                    value={values.velocity}
+                    onChange={(e) => setValue('velocity', parseFloat(e.target.value))}
+                    className="glow-range"
+                    style={{'--range-color': '#f97316'} as any}
+                />
+                <p className="text-[10px] text-zinc-500">
+                    Slower speed = More time to wiggle (Larger $\lambda$).
+                </p>
+            </div>
+
+            {/* Live Feedback Board */}
+            <div className={`p-4 rounded-xl border transition-all duration-500 flex flex-col items-center justify-center text-center gap-2
+                ${isWave ? 'bg-lime-900/20 border-lime-500/50' : 'bg-blue-900/20 border-blue-500/50'}
+            `}>
+                {isWave ? (
+                    <>
+                        <FaGhost className="text-3xl text-lime-400 animate-bounce" />
+                        <div>
+                            <h3 className="text-lime-400 font-bold uppercase tracking-widest text-sm">Wave Mode</h3>
+                            <p className="text-xs text-lime-200/70 mt-1">
+                                "I am everywhere and nowhere!"
+                            </p>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <FaMeteor className="text-3xl text-blue-400" />
+                        <div>
+                            <h3 className="text-blue-400 font-bold uppercase tracking-widest text-sm">Particle Mode</h3>
+                            <p className="text-xs text-blue-200/70 mt-1">
+                                "Out of my way, I'm a solid object!"
+                            </p>
+                        </div>
+                    </>
+                )}
+                <div className="mt-2 w-full h-px bg-white/10"></div>
+                <div className="text-[10px] font-mono text-zinc-400">
+                    $\lambda \approx { (3000 / Math.max(1, momentum)).toFixed(1) }$ units
+                </div>
+            </div>
+
+        </div>
+    );
+};
+
+// --- 5. Export ---
 export const SIMULATION_23 = {
-  title: "de Broglie’s Wavy World",
-  initialValues: { velocity: 3, mass: 5, showWave: false, wavelength: 0 },
-  achievements: achievements,
-  renderSimulation: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="w-full h-full relative">
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center z-10 bg-black/60 p-3 rounded-lg border border-white/10 backdrop-blur-md w-3/4">
-        <p className="text-zinc-300 text-xs">
-          According to de Broglie, everything is a wave. <br/>
-          The <b>faster</b> and <b>heavier</b> you are, the less "wavy" you look to the naked eye.
-        </p>
-      </div>
-      <DeBroglieCanvas values={values} setValue={setValue} />
-    </div>
-  ),
-  renderControls: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-      
-      {/* Velocity Slider */}
-      <div className="space-y-3 group">
-        <div className="flex justify-between items-end">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Velocity (v)</label>
-          <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-blue-400 font-bold">{values.velocity.toFixed(1)}</span>
-          </div>
-        </div>
-        <input 
-          type="range" min="1" max="10" step="0.5"
-          value={values.velocity}
-          onChange={(e) => setValue('velocity', parseFloat(e.target.value))}
-          className="glow-range"
-        />
-      </div>
-
-      {/* Mass Slider */}
-      <div className="space-y-3 group">
-        <div className="flex justify-between items-end">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Mass (m)</label>
-          <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-green-400 font-bold">{values.mass.toFixed(1)}</span>
-          </div>
-        </div>
-        <input 
-          type="range" min="0.5" max="10" step="0.5"
-          value={values.mass}
-          onChange={(e) => setValue('mass', parseFloat(e.target.value))}
-          className="glow-range"
-        />
-      </div>
-
-      {/* Toggle Visualization */}
-      <div className="flex flex-col justify-center">
-        <button 
-          onClick={() => setValue('showWave', !values.showWave)}
-          className={`px-4 py-2 rounded border-2 transition-all font-bold text-xs uppercase tracking-tighter ${
-            values.showWave 
-            ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' 
-            : 'bg-zinc-800 border-zinc-700 text-zinc-500'
-          }`}
-        >
-          {values.showWave ? 'Hide Probability Wave' : 'Show Probability Wave'}
-        </button>
-      </div>
-
-    </div>
-  )
+    title: 'De Broglie Hypothesis',
+    initialValues: { mass: 20, velocity: 15 },
+    achievements: achievements,
+    renderSimulation: ({ values }: { values: DeBroglieState }) => (
+        <WaveCanvas values={values} />
+    ),
+    renderControls: (props: any) => <RenderControls {...props} />
 };

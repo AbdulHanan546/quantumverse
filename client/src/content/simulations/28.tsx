@@ -1,105 +1,60 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { type Achievement } from '../../components/SimulationEngine';
+import { FaBolt, FaUndo, FaRocket } from 'react-icons/fa';
 
-// 1. Interface
+// --- 1. Interface ---
 interface SimState {
-  electronLevel: number; // 0 = Ground, 1 = 1st Excited, etc.
-  photonEnergy: number;  // The energy you are firing at the atom
-  score: number;         // How many successful jumps
-  feedback: string;      // "Miss!", "Perfect!", "Falling..."
-  isFiring: boolean;     // Trigger for animation
+  currentN: number;      // Current Principal Quantum Number (1-4)
+  photonEnergy: number;  // The energy slider value (eV)
+  lastResult: 'idle' | 'hit' | 'miss'; // Feedback for the user/achievements
+  jumpsPerformed: number; // Counter for fun
 }
 
-// Fixed Energy Levels (in arbitrary "eV" units)
-const LEVELS = [0, 4.5, 10.0, 16.5]; 
-// Gaps: 
-// 0 -> 1: 4.5
-// 1 -> 2: 5.5
-// 2 -> 3: 6.5
-// 0 -> 2: 10.0
-// etc.
-
-// 2. Achievements
+// --- 2. Achievements ---
 const achievements: Achievement<SimState>[] = [
   {
-    id: 'wrong-change',
-    title: 'Exact Change Only',
-    description: 'Fire a photon that gets rejected because the energy wasn\'t exactly right.',
-    condition: (s) => s.feedback === "MISS"
-  },
-  {
-    id: 'first-promotion',
-    title: 'Level Up',
-    description: 'Successfully jump the electron from Ground to Level 1.',
-    condition: (s) => s.electronLevel === 1 && s.score > 0
+    id: 'first-hop',
+    title: 'Baby Steps',
+    description: 'Kick the electron from the ground floor (n=1) to the first floor (n=2). Needs about 10.2 eV.',
+    condition: (s) => s.currentN === 2 && s.lastResult === 'hit'
   },
   {
     id: 'penthouse-suite',
-    title: 'Penthouse Suite',
-    description: 'Reach the highest energy level (Level 3).',
-    condition: (s) => s.electronLevel === 3
+    title: 'To The Moon',
+    description: 'Send the electron straight to the highest level (n=4). It takes a lot of juice!',
+    condition: (s) => s.currentN === 4
   },
   {
-    id: 'big-spender',
-    title: 'Skipping Floors',
-    description: 'Jump more than one level in a single go (e.g., Level 0 to 2).',
-    condition: (s) => s.electronLevel - (s.electronLevel > 1 ? 1 : 0) > 1 && s.feedback === "PERFECT FIT" // Simplified logic check
+    id: 'swing-and-a-miss',
+    title: 'Quantum Ghosting',
+    description: 'Fire a photon with energy that doesn\'t match any level gap. It passes right through like a ghost.',
+    condition: (s) => s.lastResult === 'miss'
   },
   {
-    id: 'gravity-wins',
-    title: 'What Goes Up',
-    description: 'Wait for the electron to spontaneously fall back down.',
-    condition: (s) => s.feedback === "EMISSION"
+    id: 'gravity-sucks',
+    title: 'What Goes Up...',
+    description: 'Reset the electron back to the Ground State (n=1) after exciting it.',
+    condition: (s) => s.currentN === 1 && s.jumpsPerformed > 0
+  },
+  {
+    id: 'lucky-guess',
+    title: 'Sharpshooter',
+    description: 'Hit a transition perfectly on the first try (Total jumps = 1 and result is hit).',
+    condition: (s) => s.jumpsPerformed === 1 && s.lastResult === 'hit'
   }
 ];
 
-// 3. Canvas Component
-const EnergyLevelCanvas = ({ values, setValue }: { values: SimState, setValue: any }) => {
+// --- 3. Visualization Component ---
+const AtomCanvas = ({ values }: { values: SimState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const electronY = useRef<number>(350); // Start at bottom
-  const projectiles = useRef<{x: number, y: number, active: boolean, type: 'in' | 'out', color: string}[]>([]);
-  const timerRef = useRef<number>(0);
-
-  useEffect(() => {
-    // Spontaneous Emission Logic
-    // If electron is high up, random chance to drop down
-    const checkDecay = setInterval(() => {
-      if (values.electronLevel > 0 && !values.isFiring) {
-        if (Math.random() < 0.05) {
-          const newLevel = Math.max(0, values.electronLevel - 1);
-          setValue('electronLevel', newLevel);
-          setValue('feedback', 'EMISSION');
-          
-          // Spawn emitted photon
-          projectiles.current.push({
-            x: 300, 
-            y: 350 - (LEVELS[values.electronLevel] * 15),
-            active: true,
-            type: 'out',
-            color: '#a78bfa'
-          });
-        }
-      }
-    }, 100);
-    return () => clearInterval(checkDecay);
-  }, [values.electronLevel, values.isFiring, setValue]);
-
-  // Firing Logic
-  useEffect(() => {
-    if (values.isFiring) {
-      projectiles.current.push({
-        x: 0,
-        y: 350 - (LEVELS[values.electronLevel] * 15),
-        active: true,
-        type: 'in',
-        color: '#fbbf24' // Yellow for incoming
-      });
-      
-      // Reset firing trigger immediately so we don't spam
-      const timeout = setTimeout(() => setValue('isFiring', false), 100);
-      return () => clearTimeout(timeout);
-    }
-  }, [values.isFiring, values.electronLevel, setValue]);
+  const requestRef = useRef<number>();
+  const electronAngle = useRef(0);
+  // We use this to animate the radius smoothly even if state snaps
+  const visualRadius = useRef(50); 
+  
+  // Constants for drawing
+  const ORBIT_GAP = 40;
+  const BASE_RADIUS = 50;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -107,153 +62,232 @@ const EnergyLevelCanvas = ({ values, setValue }: { values: SimState, setValue: a
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let width = 0, height = 0;
+
     const animate = () => {
-      const width = canvas.width = canvas.parentElement?.clientWidth || 600;
-      const height = canvas.height = canvas.parentElement?.clientHeight || 400;
+       // Resize logic
+       const parent = canvas.parentElement;
+       if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+           width = parent.clientWidth;
+           height = parent.clientHeight;
+           canvas.width = width;
+           canvas.height = height;
+       }
 
-      ctx.fillStyle = '#09090b';
-      ctx.fillRect(0, 0, width, height);
+       // Clear
+       ctx.fillStyle = '#09090b'; // Zinc-950
+       ctx.fillRect(0, 0, width, height);
+       
+       const centerX = width / 2;
+       const centerY = height / 2;
 
-      const centerX = width / 2;
-      const bottomY = height - 50;
-      const scaleY = 15; // Pixels per eV
+       // 1. Draw Nucleus (The sun of our tiny solar system)
+       ctx.beginPath();
+       ctx.arc(centerX, centerY, 15, 0, Math.PI * 2);
+       ctx.fillStyle = '#ef4444'; // Red-500
+       ctx.shadowColor = '#ef4444';
+       ctx.shadowBlur = 20;
+       ctx.fill();
+       ctx.shadowBlur = 0;
+       
+       // Label Nucleus
+       ctx.fillStyle = '#fff';
+       ctx.font = 'bold 10px Arial';
+       ctx.textAlign = 'center';
+       ctx.textBaseline = 'middle';
+       ctx.fillText('+Z', centerX, centerY);
 
-      // Draw Levels
-      LEVELS.forEach((ev, index) => {
-        const y = bottomY - (ev * scaleY);
-        ctx.beginPath();
-        ctx.strokeStyle = index === 0 ? '#fff' : '#52525b';
-        ctx.lineWidth = 2;
-        ctx.moveTo(centerX - 100, y);
-        ctx.lineTo(centerX + 100, y);
-        ctx.stroke();
+       // 2. Draw Orbits (The tracks)
+       ctx.lineWidth = 1;
+       for(let n = 1; n <= 4; n++) {
+         const r = BASE_RADIUS + (n-1) * ORBIT_GAP;
+         ctx.beginPath();
+         ctx.strokeStyle = values.currentN === n ? '#52525b' : '#27272a'; // Highlight current track
+         ctx.setLineDash(values.currentN === n ? [] : [5, 5]);
+         ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+         ctx.stroke();
+         
+         // Label Energy Levels
+         ctx.fillStyle = '#71717a';
+         ctx.fillText(`n=${n}`, centerX + r + 5, centerY);
+       }
+       ctx.setLineDash([]);
 
-        ctx.fillStyle = '#71717a';
-        ctx.font = '12px monospace';
-        ctx.fillText(`n=${index} (${ev.toFixed(1)} eV)`, centerX + 110, y + 4);
-      });
+       // 3. Animate Electron Logic
+       electronAngle.current += (0.05 / values.currentN); // Higher orbits = slower speed (Keplerish)
+       const targetR = BASE_RADIUS + (values.currentN - 1) * ORBIT_GAP;
+       
+       // Smooth LERP for radius transition (The "Quantum Leap" visualization)
+       visualRadius.current += (targetR - visualRadius.current) * 0.1;
 
-      // Target Y for electron
-      const targetY = bottomY - (LEVELS[values.electronLevel] * scaleY);
-      electronY.current += (targetY - electronY.current) * 0.1;
+       const ex = centerX + Math.cos(electronAngle.current) * visualRadius.current;
+       const ey = centerY + Math.sin(electronAngle.current) * visualRadius.current;
 
-      // Draw Electron
-      ctx.beginPath();
-      ctx.arc(centerX, electronY.current, 8, 0, Math.PI * 2);
-      ctx.fillStyle = '#4ade80';
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = '#4ade80';
-      ctx.fill();
-      ctx.shadowBlur = 0;
+       // 4. Draw Electron
+       ctx.beginPath();
+       ctx.arc(ex, ey, 8, 0, Math.PI * 2);
+       ctx.fillStyle = '#3b82f6'; // Blue-500
+       ctx.shadowColor = '#3b82f6';
+       ctx.shadowBlur = 15;
+       ctx.fill();
 
-      // Handle Projectiles (Photons)
-      projectiles.current.forEach((p, i) => {
-        if (p.type === 'in') {
-           p.x += 8;
-        } else {
-           p.x += 8; // Emitted goes right
-           // p.x -= 8; // Or left? Let's go right for "exit"
-        }
+       // 5. Visual Feedback for Hit/Miss
+       if (values.lastResult === 'miss') {
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+          ctx.font = '20px monospace';
+          ctx.fillText("MISSED! WRONG ENERGY", centerX, centerY + 180);
+       } else if (values.lastResult === 'hit') {
+          ctx.fillStyle = 'rgba(74, 222, 128, 0.5)';
+          ctx.font = '20px monospace';
+          ctx.fillText("ABSORBED!", centerX, centerY + 180);
+       }
 
-        // Draw Wavy Photon
-        ctx.beginPath();
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 3;
-        const waveY = p.y + Math.sin(p.x * 0.1 + timerRef.current) * 5;
-        ctx.moveTo(p.x - 10, waveY);
-        ctx.lineTo(p.x + 10, waveY);
-        ctx.stroke();
-
-        // Hit Detection for Incoming
-        if (p.type === 'in' && Math.abs(p.x - centerX) < 10 && p.active) {
-            p.active = false; // Consumed or passed
-            
-            // Check if energy matches any gap from current level
-            let hit = false;
-            for (let next = values.electronLevel + 1; next < LEVELS.length; next++) {
-                const gap = LEVELS[next] - LEVELS[values.electronLevel];
-                // Tolerance of 0.5 eV
-                if (Math.abs(values.photonEnergy - gap) <= 0.3) {
-                    setValue('electronLevel', next);
-                    setValue('score', (s: number) => s + 1);
-                    setValue('feedback', 'PERFECT FIT');
-                    hit = true;
-                    break;
-                }
-            }
-            
-            if (!hit) {
-                setValue('feedback', 'MISS');
-                // Ghost photon passes through
-                p.active = true; // Keep moving visually
-                p.color = 'rgba(251, 191, 36, 0.2)'; // Fade out
-            }
-        }
-      });
-
-      // Cleanup off-screen projectiles
-      projectiles.current = projectiles.current.filter(p => p.x < width + 50);
-      timerRef.current += 0.5;
-
-      requestAnimationFrame(animate);
+       requestRef.current = requestAnimationFrame(animate);
     };
 
-    const id = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(id);
-  }, [values, setValue]);
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current!);
+  }, [values]);
 
-  return <canvas ref={canvasRef} className="w-full h-full" />;
+  return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// 4. Main Export
+// --- 4. Controls Component ---
+const Controls = ({ values, setValue }: { 
+    values: SimState, 
+    setValue: (k: keyof SimState, v: any) => void 
+}) => {
+    
+    // Physics Logic (Bohr Model Simplified)
+    // E = -13.6 / n^2
+    const getEnergy = (n: number) => -13.6 / (n * n);
+    
+    const handleFire = () => {
+        const currentE = getEnergy(values.currentN);
+        const inputE = values.photonEnergy;
+        
+        let foundMatch = false;
+        let nextN = values.currentN;
+
+        // Check if input energy matches any gap required to jump UP
+        for (let n = values.currentN + 1; n <= 4; n++) {
+            const targetE = getEnergy(n);
+            const requiredDelta = targetE - currentE;
+            
+            // Allow a small margin of error (+/- 0.3 eV) because we are nice
+            if (Math.abs(inputE - requiredDelta) < 0.3) {
+                nextN = n;
+                foundMatch = true;
+                break;
+            }
+        }
+
+        if (foundMatch) {
+            setValue('currentN', nextN);
+            setValue('lastResult', 'hit');
+            setValue('jumpsPerformed', values.jumpsPerformed + 1);
+            // Auto reset feedback message after 2s
+            setTimeout(() => setValue('lastResult', 'idle'), 2000);
+        } else {
+            setValue('lastResult', 'miss');
+            // Auto reset feedback message after 1s
+            setTimeout(() => setValue('lastResult', 'idle'), 1000);
+        }
+    };
+
+    const handleReset = () => {
+        setValue('currentN', 1);
+        setValue('lastResult', 'idle');
+    };
+
+    // Calculate hints for the user (The cheat sheet)
+    const hints = [];
+    if (values.currentN < 4) {
+        for(let n = values.currentN + 1; n <= 4; n++) {
+            const gap = getEnergy(n) - getEnergy(values.currentN);
+            hints.push(`To n=${n}: ~${gap.toFixed(1)} eV`);
+        }
+    } else {
+        hints.push("Maximum Excitation Reached!");
+    }
+
+    return (
+        <div className="flex flex-col md:flex-row gap-8 max-w-6xl mx-auto items-center">
+            
+            {/* Input Section */}
+            <div className="flex-1 space-y-4 w-full">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                        Photon Energy (Gun)
+                    </label>
+                    <span className="text-xl font-mono text-yellow-400 font-bold">
+                        {values.photonEnergy.toFixed(1)} <span className="text-xs text-zinc-500">eV</span>
+                    </span>
+                </div>
+                
+                <input 
+                    type="range" min="0" max="14" step="0.1"
+                    value={values.photonEnergy}
+                    onChange={(e) => setValue('photonEnergy', parseFloat(e.target.value))}
+                    className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-yellow-500"
+                />
+
+                <div className="flex gap-2 text-xs text-zinc-600 font-mono">
+                    <span>0eV</span>
+                    <span className="flex-1 text-center">UV / Visible Spectrum</span>
+                    <span>14eV</span>
+                </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3 w-full md:w-auto">
+                 <button 
+                    onClick={handleFire}
+                    className="flex items-center justify-center gap-2 px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(234,179,8,0.3)]"
+                >
+                    <FaBolt /> FIRE PHOTON
+                </button>
+                <button 
+                    onClick={handleReset}
+                    className="flex items-center justify-center gap-2 px-8 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg text-sm transition-all"
+                >
+                    <FaUndo /> Reset Electron
+                </button>
+            </div>
+
+            {/* Info Panel / Cheat Sheet */}
+            <div className="flex-1 bg-zinc-950/50 p-4 rounded-lg border border-zinc-800 w-full">
+                <h4 className="text-zinc-400 text-xs font-bold uppercase mb-2 flex items-center gap-2">
+                    <FaRocket className="text-blue-500"/> Cheat Sheet (Calculated Gaps)
+                </h4>
+                <div className="grid grid-cols-1 gap-1">
+                    {hints.map((hint, i) => (
+                        <div key={i} className="text-sm font-mono text-green-400/80">
+                            • {hint}
+                        </div>
+                    ))}
+                </div>
+                <p className="text-xs text-zinc-600 mt-2 italic">
+                    *Electrons ignore energy that isn't an exact match!
+                </p>
+            </div>
+
+        </div>
+    );
+}
+
+// --- 5. Export ---
+
+// --- 5. Export ---
 export const SIMULATION_28 = {
-  title: "Quantized Energy Ladder",
-  initialValues: { electronLevel: 0, photonEnergy: 4.5, score: 0, feedback: "Ready", isFiring: false },
-  achievements: achievements,
-  renderSimulation: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="w-full h-full relative">
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center z-10 bg-black/60 p-3 rounded-lg border border-white/10 backdrop-blur-md">
-        <p className="text-zinc-300 text-xs">
-          <b>Status:</b> <span className={values.feedback === 'MISS' ? 'text-red-400' : 'text-green-400'}>{values.feedback}</span> <br/>
-          Match the gap exactly. Current Level: {LEVELS[values.electronLevel]} eV.
-        </p>
-      </div>
-      <EnergyLevelCanvas values={values} setValue={setValue} />
-    </div>
-  ),
-  renderControls: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto items-center">
-      
-      {/* Energy Slider */}
-      <div className="space-y-3 group">
-        <div className="flex justify-between items-end">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Photon Energy Input</label>
-          <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-yellow-400 font-bold">{values.photonEnergy.toFixed(1)} eV</span>
-          </div>
-        </div>
-        <input 
-          type="range" min="0.5" max="20" step="0.5"
-          value={values.photonEnergy}
-          onChange={(e) => setValue('photonEnergy', parseFloat(e.target.value))}
-          className="glow-range"
-        />
-        <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
-            <span>0 eV</span>
-            <span>20 eV</span>
-        </div>
-      </div>
-
-      {/* Fire Button */}
-      <div className="flex flex-col justify-center">
-        <button 
-          onClick={() => setValue('isFiring', true)}
-          className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-4 px-8 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.4)] transition-all transform hover:scale-105 active:scale-95"
-        >
-          SHOOT PHOTON
-        </button>
-      </div>
-
-    </div>
-  )
+    title: 'Quantized Energy Levels',
+    initialValues: { 
+        currentN: 1, 
+        photonEnergy: 10.2, 
+        lastResult: 'idle',
+        jumpsPerformed: 0
+    },
+    achievements: achievements,
+    renderSimulation: ({ values }: { values: SimState }) => <AtomCanvas values={values} />,
+    renderControls: Controls
 };

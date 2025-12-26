@@ -1,95 +1,56 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { type Achievement } from '../../components/SimulationEngine';
+import { FaCrosshairs, FaWind, FaMeteor } from 'react-icons/fa';
 
 // 1. Interface
 interface SimState {
-  mode: 'deterministic' | 'probabilistic'; // Newton vs Quantum
-  uncertainty: number; // How "fuzzy" the quantum state is
-  shotCount: number;
-  hits: {x: number, y: number, timestamp: number}[];
-  isAutoFiring: boolean;
+  angle: number;         // Launch angle (degrees)
+  velocity: number;      // Launch speed
+  uncertainty: number;   // 0 = Laser Precision, 100 = "I closed my eyes"
+  shotsFired: number;
+  autoFire: boolean;     // Machine gun mode
 }
 
 // 2. Achievements
 const achievements: Achievement<SimState>[] = [
   {
-    id: 'boring-predictability',
-    title: 'Newton’s Snooze Fest',
-    description: 'Fire 10 shots in Deterministic mode. They all hit the exact same pixel. Yawn.',
-    condition: (s) => s.mode === 'deterministic' && s.shotCount >= 10
+    id: 'sniper',
+    title: 'The Newtonian Sniper',
+    description: 'Hit the target with 0% Uncertainty. Boringly perfect.',
+    condition: (s) => s.uncertainty === 0 && s.shotsFired > 5
   },
   {
-    id: 'enter-chaos',
-    title: 'Embrace the Chaos',
-    description: 'Switch to Probabilistic mode. Welcome to the real world (at atomic scale).',
-    condition: (s) => s.mode === 'probabilistic'
+    id: 'storm-trooper',
+    title: 'Stormtrooper Aim',
+    description: 'Max out the Uncertainty. You are not hitting anything.',
+    condition: (s) => s.uncertainty >= 80
   },
   {
-    id: 'bell-curve',
-    title: 'The Bell Curve',
-    description: 'Accumulate 200 shots in Probabilistic mode to see the "Probability Cloud" emerge.',
-    condition: (s) => s.mode === 'probabilistic' && s.shotCount >= 200
+    id: 'monte-carlo',
+    title: 'Monte Carlo Simulation',
+    description: 'Fire over 200 shots to see the probability curve form.',
+    condition: (s) => s.shotsFired >= 200
   },
   {
-    id: 'max-uncertainty',
-    title: 'Heisenberg’s Nightmare',
-    description: 'Max out the uncertainty. Good luck finding that electron.',
-    condition: (s) => s.mode === 'probabilistic' && s.uncertainty >= 9.0
-  },
-  {
-    id: 'lucky-shot',
-    title: 'Quantum Luck',
-    description: 'Hit the bullseye (center) while in high uncertainty mode. Pure chance!',
-    condition: (s) => {
-        if (s.mode !== 'probabilistic' || s.hits.length === 0) return false;
-        const lastHit = s.hits[s.hits.length - 1];
-        // Center is roughly 300, 200. Distance check < 5px
-        const dist = Math.sqrt(Math.pow(lastHit.x - 300, 2) + Math.pow(lastHit.y - 200, 2));
-        return s.uncertainty > 5 && dist < 10;
-    }
+    id: 'max-power',
+    title: 'To The Moon',
+    description: 'Max velocity. Hope you have a big monitor.',
+    condition: (s) => s.velocity >= 95
   }
 ];
 
-// 3. Canvas Component
-const ProbabilityCanvas = ({ values, setValue }: { values: SimState, setValue: any }) => {
+// 3. Canvas Logic
+const CannonCanvas = ({ values }: { values: SimState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const requestRef = useRef<number>();
   
-  // Auto-fire logic
-  useEffect(() => {
-    let interval: number;
-    if (values.isAutoFiring) {
-        interval = window.setInterval(() => {
-            fireShot();
-        }, 50); // Fire every 50ms
-    }
-    return () => clearInterval(interval);
-  }, [values.isAutoFiring, values.mode, values.uncertainty]);
+  // Physics Storage
+  const particlesRef = useRef<any[]>([]); // The balls
+  const impactsRef = useRef<number[]>([]); // Where they landed (x-coordinates)
+  const valuesRef = useRef(values);
 
-  const fireShot = () => {
-      const width = 600; 
-      const height = 400;
-      const centerX = width / 2;
-      const centerY = height / 2;
-
-      let hitX, hitY;
-
-      if (values.mode === 'deterministic') {
-          // Perfect aim every time
-          hitX = centerX;
-          hitY = centerY;
-      } else {
-          // Quantum randomness (Gaussian distribution approximation)
-          // Adding multiple randoms creates a "Bell Curve" bias towards the center
-          const randNormal = () => (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 2; 
-          const spread = values.uncertainty * 25;
-          
-          hitX = centerX + randNormal() * spread;
-          hitY = centerY + randNormal() * spread;
-      }
-
-      setValue('hits', (prev: any[]) => [...prev.slice(-500), { x: hitX, y: hitY, timestamp: Date.now() }]);
-      setValue('shotCount', (prev: number) => prev + 1);
-  };
+  // Keep ref in sync
+  useEffect(() => { valuesRef.current = values; }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -97,147 +58,295 @@ const ProbabilityCanvas = ({ values, setValue }: { values: SimState, setValue: a
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let width = 0, height = 0;
+    let frame = 0;
+
     const animate = () => {
-      const width = canvas.width = canvas.parentElement?.clientWidth || 600;
-      const height = canvas.height = canvas.parentElement?.clientHeight || 400;
-      const centerX = width / 2;
-      const centerY = height / 2;
+        // --- Setup & Resize ---
+        const parent = canvas.parentElement;
+        if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+            width = parent.clientWidth;
+            height = parent.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            // Clear impacts on resize to keep visuals accurate
+            impactsRef.current = [];
+        }
 
-      ctx.fillStyle = '#09090b';
-      ctx.fillRect(0, 0, width, height);
+        const { angle, velocity, uncertainty, autoFire } = valuesRef.current;
+        const radianAngle = (angle * Math.PI) / 180;
+        const groundY = height - 50;
+        const originX = 50;
+        const originY = groundY - 20;
 
-      // Draw Target
-      [150, 100, 50].forEach((r, i) => {
-          ctx.beginPath();
-          ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
-          ctx.strokeStyle = i === 2 ? '#ef4444' : '#3f3f46'; // Inner ring red
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          if (i === 2) {
-              ctx.fillStyle = 'rgba(239, 68, 68, 0.1)';
-              ctx.fill();
-          }
-      });
+        // --- 1. Spawner (The Cannon) ---
+        // If AutoFire is on, fire every few frames
+        if (autoFire && frame % 5 === 0) {
+            // MATH: Add randomness based on uncertainty
+            // Uncertainty of 50 means +/- 25 degrees variance (huge)
+            const angleNoise = (Math.random() - 0.5) * (uncertainty / 2); 
+            const velocityNoise = (Math.random() - 0.5) * (uncertainty / 5);
 
-      // Draw Hits
-      values.hits.forEach(hit => {
-          ctx.beginPath();
-          ctx.arc(hit.x, hit.y, 3, 0, Math.PI * 2);
-          
-          // Color based on mode
-          if (values.mode === 'deterministic') {
-              ctx.fillStyle = '#4ade80'; // Green for precision
-              ctx.shadowBlur = 5;
-              ctx.shadowColor = '#4ade80';
-          } else {
-              ctx.fillStyle = 'rgba(167, 139, 250, 0.6)'; // Purple for quantum fuzz
-              ctx.shadowBlur = 0;
-          }
-          ctx.fill();
-      });
+            // Apply noise to launch vector
+            const finalAngle = ((angle + angleNoise) * Math.PI) / 180;
+            const finalVel = (velocity + velocityNoise) * 0.25; // Scale down for canvas pixels
 
-      // Draw Text Overlay
-      ctx.fillStyle = '#71717a';
-      ctx.font = '12px monospace';
-      ctx.fillText(`Shots Fired: ${values.shotCount}`, 20, 30);
-      if (values.mode === 'deterministic') {
-          ctx.fillText("PREDICTION: 100% ACCURACY", 20, 50);
-      } else {
-          ctx.fillText("PREDICTION: IMPOSSIBLE", 20, 50);
-          ctx.fillText("PROBABILITY: HIGH AT CENTER", 20, 65);
-      }
+            particlesRef.current.push({
+                x: originX,
+                y: originY,
+                vx: Math.cos(finalAngle) * finalVel * 5,
+                vy: -Math.sin(finalAngle) * finalVel * 5,
+                life: 1.0,
+                color: uncertainty === 0 ? '#ef4444' : '#4ade80' // Red if exact, Green if probabilistic
+            });
+        }
 
-      requestAnimationFrame(animate);
+        // --- Clear Screen ---
+        ctx.fillStyle = '#09090b'; // Very dark background
+        ctx.fillRect(0, 0, width, height);
+
+        // --- 2. Draw Environment ---
+        
+        // Ground
+        ctx.strokeStyle = '#27272a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(width, groundY);
+        ctx.stroke();
+
+        // The Cannon
+        ctx.save();
+        ctx.translate(originX, originY);
+        ctx.rotate(-radianAngle);
+        ctx.fillStyle = '#52525b';
+        ctx.fillRect(0, -10, 60, 20); // Barrel
+        ctx.restore();
+        
+        // Cannon Base
+        ctx.fillStyle = '#3f3f46';
+        ctx.beginPath();
+        ctx.arc(originX, originY, 20, 0, Math.PI*2);
+        ctx.fill();
+
+        // --- 3. Physics Loop ---
+        const gravity = 0.4;
+
+        for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+            const p = particlesRef.current[i];
+            
+            // Move
+            p.vy += gravity;
+            p.x += p.vx;
+            p.y += p.vy;
+
+            // Draw Ball
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+
+            // Collision with Ground
+            if (p.y >= groundY) {
+                // Register Impact
+                impactsRef.current.push(p.x);
+                // Remove particle
+                particlesRef.current.splice(i, 1);
+            }
+            // Out of bounds
+            else if (p.x > width || p.y > height + 50) {
+                particlesRef.current.splice(i, 1);
+            }
+        }
+
+        // --- 4. Visualization: The Probability Curve ---
+        // This draws the history of where balls landed
+        if (impactsRef.current.length > 0) {
+            // Optimization: Only draw landing markers if < 500, else just draw the curve
+            if (impactsRef.current.length < 500) {
+                ctx.fillStyle = 'rgba(74, 222, 128, 0.5)';
+                for (let x of impactsRef.current) {
+                    ctx.fillRect(x, groundY, 2, 4);
+                }
+            }
+        }
+
+        // --- 5. The "Text" Feedback ---
+        // We calculate the spread (Standard Deviation roughly)
+        ctx.font = 'bold 80px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        if (uncertainty === 0) {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.1)'; // Red Watermark
+            ctx.fillText("DETERMINISTIC", width/2, height/3);
+            
+            // Draw predicted path line for 0 uncertainty
+            if (velocity > 0) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(originX, originY);
+                // Simple Bezier approximation for visual guide
+                // Calculate max height point
+                const v0 = velocity * 0.25 * 5;
+                const vy = v0 * Math.sin(radianAngle);
+                const vx = v0 * Math.cos(radianAngle);
+                const t_flight = (2 * vy) / gravity;
+                const x_final = originX + vx * t_flight;
+                const y_max = originY - (vy*vy)/(2*gravity);
+                
+                ctx.quadraticCurveTo(originX + (x_final-originX)/2, originY - (vy*vy)/(gravity) * 2, x_final, groundY); 
+                // Note: Control point for quadratic curve to match parabola is tricky, 
+                // simplistic line to landing spot is better for "prediction"
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Target Marker X
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText("×", x_final, groundY - 10);
+                ctx.font = '12px monospace';
+                ctx.fillText("PREDICTED LANDING", x_final, groundY - 40);
+            }
+
+        } else {
+
+            
+            // Draw Range bars
+            if (impactsRef.current.length > 1) {
+                const minX = Math.min(...impactsRef.current);
+                const maxX = Math.max(...impactsRef.current);
+                
+                // Draw a box indicating the "Spread"
+                ctx.fillStyle = 'rgba(74, 222, 128, 0.1)';
+                ctx.fillRect(minX, groundY - 50, maxX - minX, 50);
+                
+                ctx.fillStyle = '#4ade80';
+                ctx.font = '14px monospace';
+                ctx.fillText(`SPREAD: ${Math.round(maxX - minX)}px`, (minX + maxX)/2, groundY - 60);
+            }
+        }
+
+        frame++;
+        requestRef.current = requestAnimationFrame(animate);
     };
 
-    const id = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(id);
-  }, [values]);
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current!);
+  }, []);
 
-  return (
-    <div className="w-full h-full relative group cursor-crosshair" onClick={() => !values.isAutoFiring && fireShot()}>
-       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-0 group-hover:opacity-50 transition-opacity">
-           <span className="text-white text-xs tracking-widest uppercase border border-white/20 px-2 py-1 bg-black/50">Click to Fire</span>
-       </div>
-       <canvas ref={canvasRef} className="w-full h-full" />
-    </div>
-  );
+  return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// 4. Main Export
+// 4. Controls
+const renderControls = ({ values, setValue, setValues }: any) => {
+    
+    // Auto-fire logic for "shotsFired" achievement tracking
+    useEffect(() => {
+        let interval: any;
+        if (values.autoFire) {
+            interval = setInterval(() => {
+                setValues((prev: SimState) => ({
+                    ...prev,
+                    shotsFired: prev.shotsFired + 1
+                }));
+            }, 100); // 10 shots per second approx
+        }
+        return () => clearInterval(interval);
+    }, [values.autoFire]);
+
+    const clearShots = () => {
+        setValues((prev: SimState) => ({ ...prev, shotsFired: 0 }));
+        // Note: Canvas clears automatically on resize or we could add a toggle trigger
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-6xl mx-auto items-center">
+            
+            {/* Fire Button */}
+            <div className="flex flex-col items-center justify-center p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
+                <button
+                    onClick={() => setValue('autoFire', !values.autoFire)}
+                    className={`
+                        w-full py-4 rounded-lg font-bold text-lg transition-all flex flex-col items-center gap-1
+                        ${values.autoFire 
+                            ? 'bg-red-500/20 text-red-400 border border-red-500 animate-pulse' 
+                            : 'bg-green-500 hover:bg-green-400 text-black shadow-lg'}
+                    `}
+                >
+                    <FaMeteor />
+                    {values.autoFire ? 'STOP FIRING' : 'FIRE CANNON'}
+                </button>
+                <div className="mt-2 text-xs font-mono text-zinc-500">
+                    SHOTS FIRED: {values.shotsFired}
+                </div>
+            </div>
+
+            {/* Angle Slider */}
+            <div className="space-y-2 group">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Angle</label>
+                    <span className="text-sm font-mono text-green-400 font-bold">{values.angle}°</span>
+                </div>
+                <input 
+                    type="range" min="0" max="90" step="1"
+                    value={values.angle}
+                    onChange={(e) => setValue('angle', parseFloat(e.target.value))}
+                    className="glow-range"
+                />
+            </div>
+
+            {/* Velocity Slider */}
+            <div className="space-y-2 group">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Power</label>
+                    <span className="text-sm font-mono text-green-400 font-bold">{values.velocity}%</span>
+                </div>
+                <input 
+                    type="range" min="10" max="100" step="1"
+                    value={values.velocity}
+                    onChange={(e) => setValue('velocity', parseFloat(e.target.value))}
+                    className="glow-range"
+                />
+            </div>
+
+            {/* Uncertainty Slider (The Main Lesson) */}
+            <div className="space-y-2 group border-l pl-6 border-zinc-700">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-2">
+                        <FaWind /> Uncertainty
+                    </label>
+                    <span className={`text-sm font-mono font-bold ${values.uncertainty === 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {values.uncertainty}%
+                    </span>
+                </div>
+                <input 
+                    type="range" min="0" max="100" step="1"
+                    value={values.uncertainty}
+                    onChange={(e) => {
+                        setValue('uncertainty', parseFloat(e.target.value));
+                        if (parseFloat(e.target.value) === 0) clearShots();
+                    }}
+                    className="glow-range accent-red-500"
+                />
+                <p className="text-[10px] text-zinc-500 h-4">
+                    {values.uncertainty === 0 
+                        ? "Newtonian Physics (Perfect Prediction)" 
+                        : "Real World / Quantum Noise"}
+                </p>
+            </div>
+
+        </div>
+    );
+}
+
 export const SIMULATION_30 = {
-  title: "Newton vs. The Quantum Cloud",
-  initialValues: { mode: 'deterministic', uncertainty: 2, shotCount: 0, hits: [], isAutoFiring: false },
-  achievements: achievements,
-  renderSimulation: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="w-full h-full relative">
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center z-10 bg-black/60 p-3 rounded-lg border border-white/10 backdrop-blur-md w-3/4">
-        <p className="text-zinc-300 text-xs">
-          <b>Deterministic:</b> Same input = Same output. Boring.<br/>
-          <b>Probabilistic:</b> Same input = "Maybe here, maybe there." Exciting!
-        </p>
-      </div>
-      <ProbabilityCanvas values={values} setValue={setValue} />
-    </div>
-  ),
-  renderControls: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-      
-      {/* Mode Toggle */}
-      <div className="flex flex-col justify-center">
-        <div className="flex bg-zinc-800 p-1 rounded-lg">
-            <button 
-                onClick={() => { setValue('mode', 'deterministic'); setValue('hits', []); setValue('shotCount', 0); }}
-                className={`flex-1 py-2 text-xs font-bold rounded transition-all ${values.mode === 'deterministic' ? 'bg-green-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-            >
-                CLASSICAL
-            </button>
-            <button 
-                onClick={() => { setValue('mode', 'probabilistic'); setValue('hits', []); setValue('shotCount', 0); }}
-                className={`flex-1 py-2 text-xs font-bold rounded transition-all ${values.mode === 'probabilistic' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-            >
-                QUANTUM
-            </button>
-        </div>
-      </div>
-
-      {/* Uncertainty Slider */}
-      <div className={`space-y-3 group transition-opacity ${values.mode === 'deterministic' ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
-        <div className="flex justify-between items-end">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-purple-400 transition-colors">Quantum Fuzziness</label>
-          <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-purple-400 font-bold">{values.uncertainty.toFixed(1)}</span>
-          </div>
-        </div>
-        <input 
-          type="range" min="1" max="10" step="0.5"
-          value={values.uncertainty}
-          onChange={(e) => setValue('uncertainty', parseFloat(e.target.value))}
-          className="glow-range"
-        />
-      </div>
-
-      {/* Fire Controls */}
-      <div className="flex gap-4 items-center">
-        <button 
-          onClick={() => setValue('isAutoFiring', !values.isAutoFiring)}
-          className={`flex-1 py-4 rounded-xl font-bold text-xs uppercase transition-all duration-300 border-2 ${
-            values.isAutoFiring 
-            ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' 
-            : 'bg-zinc-800 border-zinc-700 text-zinc-500'
-          }`}
-        >
-          {values.isAutoFiring ? 'STOP RAPID FIRE' : 'START RAPID FIRE'}
-        </button>
-        
-        <button 
-            onClick={() => { setValue('hits', []); setValue('shotCount', 0); }}
-            className="px-4 py-4 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-400"
-            title="Clear Target"
-        >
-        </button>
-      </div>
-
-    </div>
-  )
+    title: 'Kinematics: Order vs Chaos',
+    initialValues: { angle: 45, velocity: 60, uncertainty: 20, shotsFired: 0, autoFire: false },
+    achievements: achievements,
+    renderSimulation: ({ values }: { values: SimState }) => (
+        <CannonCanvas values={values} />
+    ),
+    renderControls: renderControls
 };

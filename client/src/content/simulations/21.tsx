@@ -1,56 +1,80 @@
 import React, { useEffect, useRef } from 'react';
-import { type Achievement } from '../../components/SimulationEngine';
+import { type Achievement } from "../../components/SimulationEngine";
+import { FaBolt, FaWeightHanging } from 'react-icons/fa';
 
-// 1. Interface
-// Frequency = Color/Energy. Intensity = Number of photons. 
-// ObjectMass = How hard it is to move the block.
-interface SimState {
-  frequency: number; 
-  intensity: number;
-  objectMass: number;
-  currentVelocity: number;
+// --- 1. Interface ---
+interface PhotonState {
+  wavelength: number; // in nanometers (nm)
+  intensity: number;  // number of particles
 }
 
-// 2. Achievements
-const achievements: Achievement<SimState>[] = [
+// --- 2. Helper: Wavelength to Color ---
+const getSpectralColor = (l: number) => {
+  let r=0, g=0, b=0;
+  if (l >= 380 && l < 440) { r = -(l - 440) / (440 - 380); g = 0; b = 1; }
+  else if (l >= 440 && l < 490) { r = 0; g = (l - 440) / (490 - 440); b = 1; }
+  else if (l >= 490 && l < 510) { r = 0; g = 1; b = -(l - 510) / (510 - 490); }
+  else if (l >= 510 && l < 580) { r = (l - 510) / (580 - 510); g = 1; b = 0; }
+  else if (l >= 580 && l < 645) { r = 1; g = -(l - 645) / (645 - 580); b = 0; }
+  else if (l >= 645 && l <= 780) { r = 1; g = 0; b = 0; }
+  
+  let alpha = 1;
+  if (l > 700) alpha = 0.3 + 0.7 * (780 - l) / (780 - 700);
+  else if (l < 420) alpha = 0.3 + 0.7 * (l - 380) / (420 - 380);
+
+  return `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${alpha})`;
+};
+
+// --- 3. Achievements ---
+const achievements: Achievement<PhotonState>[] = [
   {
-    id: 'baby-steps',
-    title: 'Light Push',
-    description: 'Get the block moving using only light! Physics is weird, right?',
-    condition: (s) => s.currentVelocity > 0.1
+    id: 'hulk-mode',
+    title: 'Gamma Rays?',
+    description: 'Create high-energy photons (Violet/UV) by dropping wavelength below 400nm.',
+    condition: (s) => s.wavelength <= 400
   },
   {
-    id: 'blue-power',
-    title: 'Violet Violence',
-    description: 'Use high-frequency (Blue/UV) light to maximize momentum transfer.',
-    condition: (s) => s.frequency > 9 && s.currentVelocity > 0.5
+    id: 'chill-vibes',
+    title: 'Infrared Snooze',
+    description: 'Lower the energy to a lazy crawl (Red/IR) above 700nm.',
+    condition: (s) => s.wavelength >= 700
   },
   {
-    id: 'massive-struggle',
-    title: 'The Heavyweight',
-    description: 'Try to move a 10kg block. You’re going to need a lot of photons.',
-    condition: (s) => s.objectMass === 10 && s.currentVelocity > 0.05
+    id: 'crowd-control',
+    title: 'Photon Army',
+    description: 'Crank the intensity to max.',
+    condition: (s) => s.intensity >= 20
   },
   {
-    id: 'solar-sailor',
-    title: 'Solar Sailor',
-    description: 'Reach a velocity of 2.0 or higher. You are officially drifting through space.',
-    condition: (s) => s.currentVelocity >= 2.0
+    id: 'ghost-town',
+    title: 'Lone Ranger',
+    description: 'Set intensity to 1.',
+    condition: (s) => s.intensity === 1
   },
   {
-    id: 'low-energy-chill',
-    title: 'Red Light Nap',
-    description: 'Use Red light on a heavy block. It’s like trying to move a car by throwing marshmallows at it.',
-    condition: (s) => s.frequency < 2 && s.objectMass > 8
+    id: 'green-lantern',
+    title: 'In Brightest Day',
+    description: 'Find the sweet spot for pure Green light (~530-550nm).',
+    condition: (s) => s.wavelength >= 530 && s.wavelength <= 550
+  },
+  {
+    id: 'balanced-beam',
+    title: 'Perfect Yellow',
+    description: 'Create a nice sunny yellow beam (~580nm).',
+    condition: (s) => Math.abs(s.wavelength - 580) < 10
   }
 ];
 
-// 3. Canvas Component
-const MomentumCanvas = ({ values, setValue }: { values: SimState, setValue: any }) => {
+// --- 4. Canvas Component ---
+const PhotonCanvas = ({ values }: { values: PhotonState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const photons = useRef<{ x: number, y: number, color: string, energy: number }[]>([]);
-  const blockX = useRef<number>(200);
-  const velocity = useRef<number>(0);
+  const requestRef = useRef<number>();
+  const particlesRef = useRef<any[]>([]);
+  const targetHeatRef = useRef(0);
+  
+  // FIX: Use a ref for values so the loop doesn't restart on every slider change
+  const valuesRef = useRef(values);
+  useEffect(() => { valuesRef.current = values; }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -58,150 +82,189 @@ const MomentumCanvas = ({ values, setValue }: { values: SimState, setValue: any 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let width = 0, height = 0;
+    let frame = 0;
+
     const animate = () => {
-      const width = canvas.width = canvas.parentElement?.clientWidth || 600;
-      const height = canvas.height = canvas.parentElement?.clientHeight || 400;
-
-      ctx.fillStyle = '#09090b';
-      ctx.fillRect(0, 0, width, height);
-
-      // Physics Math
-      // Momentum p = E/c. In our sim, p is proportional to frequency.
-      const photonMomentum = values.frequency * 0.02;
-      
-      // Update Block position
-      velocity.current *= 0.99; // Simple friction/drag
-      blockX.current += velocity.current;
-      if (blockX.current > width - 50) blockX.current = 100; // Reset if it goes off screen
-      
-      // Update Simulation Engine State for achievements
-      if (Math.abs(values.currentVelocity - velocity.current) > 0.01) {
-        setValue('currentVelocity', velocity.current);
+      // Resize logic
+      const parent = canvas.parentElement;
+      if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
+        width = parent.clientWidth;
+        height = parent.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
       }
 
-      // Draw Block (The "Solar Sail")
-      const size = 60;
-      ctx.fillStyle = '#27272a';
-      ctx.strokeStyle = '#60a5fa';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(blockX.current, height/2 - size/2, 10, size);
-      ctx.fillRect(blockX.current, height/2 - size/2, 10, size);
-      
-      // Label the mass
-      ctx.fillStyle = '#60a5fa';
-      ctx.font = '12px monospace';
-      ctx.fillText(`${values.objectMass}kg`, blockX.current - 10, height/2 + size);
+      // FIX: Read from Ref instead of closure to keep animation smooth
+      const currentValues = valuesRef.current;
+      const { wavelength, intensity } = currentValues;
 
-      // Spawn Photons
-      if (Math.random() < values.intensity * 0.2) {
-        const hue = 280 - (values.frequency * 28);
-        photons.current.push({
+      // Clear Screen
+      ctx.fillStyle = 'rgba(24, 24, 27, 0.4)';
+      ctx.fillRect(0, 0, width, height);
+
+      // --- Draw Target ---
+      const targetX = width - 60;
+      targetHeatRef.current = Math.max(0, targetHeatRef.current - 0.5);
+      
+      const heatColor = Math.min(255, targetHeatRef.current * 5);
+      ctx.fillStyle = `rgb(${heatColor}, ${heatColor/2}, 50)`;
+      ctx.strokeStyle = '#52525b';
+      ctx.lineWidth = 4;
+      
+      const shake = (Math.random() - 0.5) * (targetHeatRef.current / 5);
+      
+      // FIX: Replaced roundRect with rect for compatibility
+      ctx.beginPath();
+      ctx.rect(targetX + shake, height/4, 20, height/2);
+      ctx.fill();
+      ctx.stroke();
+
+      // --- Particle Logic ---
+      if (frame % Math.max(1, Math.floor(21 - intensity)) === 0) {
+        particlesRef.current.push({
           x: 0,
-          y: height/2 + (Math.random() - 0.5) * size,
-          color: `hsla(${hue}, 80%, 60%, 0.8)`,
-          energy: photonMomentum
+          y: height / 2 + (Math.random() - 0.5) * 50,
+          speed: 5 + (750 - wavelength) / 50,
+          amp: 10 + (wavelength / 20),
+          freq: 0.05 + (750 - wavelength) / 2000,
+          phase: frame * 0.1
         });
       }
 
-      // Draw and Move Photons
-      photons.current.forEach((p, i) => {
-        p.x += 7;
+      const color = getSpectralColor(wavelength);
+      const energyFactor = (800 - wavelength) / 10; 
+
+      for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+        const p = particlesRef.current[i];
         
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = p.color;
-        ctx.fillStyle = p.color;
+        p.x += p.speed;
+        const currentY = p.y + p.amp * Math.sin(p.freq * p.x - p.phase);
+
+        // Draw Particle
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.arc(p.x, currentY, 4, 0, Math.PI * 2);
         ctx.fill();
-
-        // Collision detection
-        if (p.x >= blockX.current && p.x <= blockX.current + 10 && Math.abs(p.y - height/2) < size/2) {
-          // Change in velocity = momentum / mass
-          velocity.current += p.energy / values.objectMass;
-          photons.current.splice(i, 1);
+        
+        // Draw Wave Trail
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for(let j=0; j<20; j++) {
+            const trailX = p.x - j*2;
+            const trailY = p.y + p.amp * Math.sin(p.freq * trailX - p.phase);
+            if(j===0) ctx.moveTo(trailX, trailY);
+            else ctx.lineTo(trailX, trailY);
         }
-      });
+        ctx.stroke();
 
-      photons.current = photons.current.filter(p => p.x < width);
-      requestAnimationFrame(animate);
+        // Collision or Off-screen
+        if (p.x >= targetX) {
+            targetHeatRef.current += energyFactor;
+            particlesRef.current.splice(i, 1);
+            
+            // Flash
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(targetX, currentY, energyFactor/2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (p.x > width) {
+            particlesRef.current.splice(i, 1);
+        }
+      }
+
+      frame++;
+      requestRef.current = requestAnimationFrame(animate);
     };
 
-    const animId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animId);
-  }, [values, setValue]);
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current!);
+  }, []); // FIX: Empty dependency array ensures loop runs only once
 
-  return <canvas ref={canvasRef} className="w-full h-full" />;
+  return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// 4. Main Export
+// --- 5. Controls ---
+const RenderControls = ({ values, setValue }: { values: PhotonState, setValue: any }) => {
+    
+    const energyEV = (1240 / values.wavelength).toFixed(2);
+    const momentumUnits = (1000 / values.wavelength).toFixed(2);
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto items-end">
+            
+            {/* Wavelength Slider */}
+            <div className="space-y-3 group col-span-1 md:col-span-2">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-blue-400 transition-colors">
+                        Wavelength (<span style={{ fontFamily: 'Times New Roman, serif', fontStyle: 'italic' }}>λ</span>)
+                    </label>
+                    <div className="bg-zinc-800 px-3 py-1 rounded border border-zinc-700 flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getSpectralColor(values.wavelength) }}></div>
+                        <span className="text-sm font-mono text-blue-400 font-bold">{values.wavelength} <span className="text-zinc-500 text-xs">nm</span></span>
+                    </div>
+                </div>
+                <input 
+                    type="range" min="380" max="780" step="10"
+                    value={values.wavelength}
+                    onChange={(e) => setValue('wavelength', parseFloat(e.target.value))}
+                    className="glow-range"
+                    style={{ '--range-color': getSpectralColor(values.wavelength) } as any}
+                />
+                <div className="flex justify-between text-[10px] text-zinc-600 font-bold uppercase tracking-wider">
+                    <span>UV/Violet (High E)</span>
+                    <span>Green</span>
+                    <span>Red/IR (Low E)</span>
+                </div>
+            </div>
+
+            {/* Intensity Slider */}
+            <div className="space-y-3 group col-span-1">
+                <div className="flex justify-between items-end">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Intensity</label>
+                    <div className="bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
+                        <span className="text-sm font-mono text-green-400 font-bold">{values.intensity}</span>
+                    </div>
+                </div>
+                <input 
+                    type="range" min="1" max="20" step="1"
+                    value={values.intensity}
+                    onChange={(e) => setValue('intensity', parseFloat(e.target.value))}
+                    className="glow-range"
+                />
+            </div>
+
+            {/* Live Stats Display */}
+            <div className="bg-zinc-900/50 rounded-lg p-4 border border-zinc-800 grid grid-cols-2 gap-4">
+                <div>
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <FaBolt className="text-yellow-500" /> Energy (eV)
+                    </div>
+                    <div className="text-xl font-mono text-white font-bold">
+                        {energyEV}
+                    </div>
+                </div>
+                <div>
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <FaWeightHanging className="text-blue-500" /> Momentum
+                    </div>
+                    <div className="text-xl font-mono text-white font-bold">
+                        {momentumUnits}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- 6. Export ---
 export const SIMULATION_21 = {
-  title: "Photon Punch-Out",
-  initialValues: { frequency: 5, intensity: 5, objectMass: 2, currentVelocity: 0 },
-  achievements: achievements,
-  renderSimulation: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="w-full h-full relative">
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center z-10 bg-black/60 p-3 rounded-lg border border-white/10 backdrop-blur-md">
-        <p className="text-zinc-300 text-xs">
-          Photons have no mass, but they have <b>momentum</b>. <br/>
-          Blue photons (High Frequency) carry a bigger "punch" than Red ones.
-        </p>
-      </div>
-      <MomentumCanvas values={values} setValue={setValue} />
-    </div>
-  ),
-  renderControls: ({ values, setValue }: { values: SimState, setValue: any }) => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-      
-      {/* Frequency (Energy per photon) */}
-      <div className="space-y-3 group">
-        <div className="flex justify-between items-end">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Photon Energy (Color)</label>
-          <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-blue-400 font-bold">
-              {values.frequency < 3 ? 'Low (Red)' : values.frequency > 8 ? 'High (Violet)' : 'Medium'}
-            </span>
-          </div>
-        </div>
-        <input 
-          type="range" min="1" max="10" step="0.1"
-          value={values.frequency}
-          onChange={(e) => setValue('frequency', parseFloat(e.target.value))}
-          className="glow-range"
-        />
-      </div>
-
-      {/* Intensity (Number of photons) */}
-      <div className="space-y-3 group">
-        <div className="flex justify-between items-end">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Beam Intensity</label>
-          <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-yellow-400 font-bold">{Math.round(values.intensity * 10)}%</span>
-          </div>
-        </div>
-        <input 
-          type="range" min="1" max="10" step="1"
-          value={values.intensity}
-          onChange={(e) => setValue('intensity', parseFloat(e.target.value))}
-          className="glow-range"
-        />
-      </div>
-
-      {/* Object Mass */}
-      <div className="space-y-3 group">
-        <div className="flex justify-between items-end">
-          <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Target Mass</label>
-          <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-red-400 font-bold">{values.objectMass} <span className="text-zinc-500 text-xs">kg</span></span>
-          </div>
-        </div>
-        <input 
-          type="range" min="1" max="10" step="1"
-          value={values.objectMass}
-          onChange={(e) => setValue('objectMass', parseFloat(e.target.value))}
-          className="glow-range"
-        />
-      </div>
-
-    </div>
-  )
+    title: 'Photon Gun: Energy & Momentum',
+    initialValues: { wavelength: 600, intensity: 5 },
+    achievements: achievements,
+    renderSimulation: ({ values }: { values: PhotonState }) => (
+        <PhotonCanvas values={values} />
+    ),
+    renderControls: (props: any) => <RenderControls {...props} />
 };
