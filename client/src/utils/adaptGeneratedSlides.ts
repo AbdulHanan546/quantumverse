@@ -2,21 +2,57 @@ import type { SlideData as TopicSlideData, SimulationDriver } from '../component
 
 function buildRunFunction(simulationCode?: string): SimulationDriver | undefined {
   if (!simulationCode) return undefined;
-  try {
-    // If the code contains a named function, evaluate it and return that function.
-    // Wrap in an IIFE to avoid leaking into global scope.
-    const wrapped = `(function(){\n${simulationCode}\n// return the first function defined in this scope\nfor (const k in this) { if (typeof this[k] === 'function') return this[k]; }\nreturn undefined;\n})()`;
-    // eslint-disable-next-line no-new-func
-    const fn = new Function(wrapped)();
-    if (typeof fn === 'function') return fn as SimulationDriver;
+  
+  const code = simulationCode.trim();
+  let extractedFn: Function | undefined;
 
-    // Fallback: try to build a function from the code as a body that receives canvas
-    // eslint-disable-next-line no-new-func
-    const fallback = new Function('canvas', simulationCode) as SimulationDriver;
-    return fallback;
+  try {
+    const functionNameMatch = code.match(/function\s+([a-zA-Z_$][\w$]*)/);
+    
+    if (functionNameMatch) {
+      const name = functionNameMatch[1];
+      const factory = new Function(`${code}\nreturn ${name};`);
+      extractedFn = factory();
+    } else {
+      if (code.startsWith('(') || code.startsWith('function') || code.includes('=>')) {
+          try {
+             extractedFn = new Function(`return (${code})`)();
+          } catch {
+          }
+      }
+    }
+    
+    if (!extractedFn) {
+        extractedFn = new Function('canvas', 'context', 'cleanupRef', code);
+    }
+    
+    if (typeof extractedFn !== 'function') return undefined;
+
+    return (canvas: HTMLCanvasElement) => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return () => {};
+
+      const cleanupRef = { current: () => {} };
+
+      try {
+        const result = extractedFn(canvas, ctx, cleanupRef);
+
+        if (typeof result === 'function') {
+          return result;
+        }
+        
+        if (typeof cleanupRef.current === 'function') {
+           return cleanupRef.current;
+        }
+      } catch (err) {
+        console.error("Runtime error in generated simulation:", err);
+      }
+      
+      return () => {}; // Default no-op cleanup
+    };
+
   } catch (err) {
-    // If evaluation fails, return undefined and let the caller render a placeholder
-    // console.error('Failed to build simulation function', err);
+    console.error('Failed to compile simulation code:', err);
     return undefined;
   }
 }
