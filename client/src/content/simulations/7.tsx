@@ -1,48 +1,57 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { type Achievement } from '../../components/SimulationEngine';
-import { FaGhost, FaWaveSquare, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { type Achievement } from "../../components/SimulationEngine";
+import { FaWaveSquare, FaVolumeUp, FaVolumeMute, FaEye } from 'react-icons/fa';
 
 // --- 1. Interface ---
 interface SuperpositionState {
-  wave1Amp: number;   // Amplitude of first wave (-100 to 100)
-  wave2Amp: number;   // Amplitude of second wave (-100 to 100)
-  phaseShift: number; // Phase shift of second wave (0 to 360 degrees)
-  isRunning: boolean;
+  ampA: number;    // Amplitude of Wave 1 (Red)
+  freqA: number;   // Frequency of Wave 1
+  ampB: number;    // Amplitude of Wave 2 (Blue)
+  freqB: number;   // Frequency of Wave 2
+  showComponents: boolean; // Show the Red/Blue ghost waves?
+  speed: number;   // Simulation speed
 }
 
 // --- 2. Achievements ---
 const achievements: Achievement<SuperpositionState>[] = [
   {
-    id: 'ghost-mode',
-    title: 'Ghost Mode (Destructive)',
-    description: 'Make the waves cancel each other out perfectly. Total silence.',
-    condition: (s) => Math.abs(s.wave1Amp + s.wave2Amp * Math.cos(s.phaseShift * Math.PI / 180)) < 5 && Math.abs(s.wave1Amp) > 20
+    id: 'constructive-chaos',
+    title: 'Mega Wave',
+    description: 'Max out both amplitudes. The result is bigger than the screen!',
+    condition: (s) => s.ampA + s.ampB >= 190
   },
   {
-    id: 'mega-wave',
-    title: 'Mega Wave (Constructive)',
-    description: 'Combine two large waves perfectly to create a monster wave (>180 amp).',
-    condition: (s) => Math.abs(s.wave1Amp + s.wave2Amp) > 180 && s.phaseShift === 0
+    id: 'total-silence',
+    title: 'Noise Cancelling',
+    description: 'Set identical amps and freqs, but... wait, if they move opposite they will cancel periodically. Just try to set Amps equal.',
+    condition: (s) => s.ampA === s.ampB && s.ampA > 50
   },
   {
-    id: 'opposite-day',
-    title: 'Opposite Day',
-    description: 'Have one wave fully positive and the other fully negative.',
-    condition: (s) => s.wave1Amp === 100 && s.wave2Amp === -100
+    id: 'dj-beats',
+    title: 'The Beat Drop',
+    description: 'Set frequencies very close (e.g., 2.0 and 2.2). Watch the "Wah-Wah" amplitude modulation.',
+    condition: (s) => Math.abs(s.freqA - s.freqB) < 0.3 && Math.abs(s.freqA - s.freqB) > 0.01
   },
   {
-    id: 'phase-master',
-    title: 'Phase Master',
-    description: 'Set the phase shift exactly to 180 degrees.',
-    condition: (s) => s.phaseShift === 180
+    id: 'solo-artist',
+    title: 'Solo Performance',
+    description: 'Turn one wave completely off (Amplitude 0).',
+    condition: (s) => s.ampA === 0 || s.ampB === 0
   }
 ];
 
-// --- 3. Physics Simulation ---
+// --- 3. Canvas Component ---
 const SuperpositionCanvas = ({ values }: { values: SuperpositionState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
-  const timeRef = useRef<number>(0);
+  
+  // 1. REF PATTERN: Store state in ref to decouple from render cycle
+  const valuesRef = useRef(values);
+
+  // Sync ref when props change
+  useEffect(() => {
+    valuesRef.current = values;
+  }, [values]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,10 +59,12 @@ const SuperpositionCanvas = ({ values }: { values: SuperpositionState }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Time tracker
+    let t = 0;
     let width = 0, height = 0;
 
     const animate = () => {
-      // Resize Logic
+      // Handle Resize
       const parent = canvas.parentElement;
       if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
         width = parent.clientWidth;
@@ -62,177 +73,233 @@ const SuperpositionCanvas = ({ values }: { values: SuperpositionState }) => {
         canvas.height = height;
       }
 
-      if (values.isRunning) {
-        timeRef.current += 0.05;
-      }
+      // Read latest values from Ref
+      const { ampA, freqA, ampB, freqB, speed, showComponents } = valuesRef.current;
+      
+      t += 0.05 * speed;
 
-      const centerY = height / 2;
-      const t = timeRef.current;
-
-      ctx.fillStyle = '#09090b'; // Background
+      // --- RENDER ---
+      ctx.fillStyle = '#09090b'; // Zinc 950
       ctx.fillRect(0, 0, width, height);
 
+      const centerY = height / 2;
+      
       // Draw Center Line
       ctx.strokeStyle = '#27272a';
-      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, centerY);
-      ctx.lineTo(width, centerY);
+      ctx.moveTo(0, centerY); ctx.lineTo(width, centerY);
       ctx.stroke();
-      ctx.setLineDash([]);
 
-      // Draw Wave 1 (Red/Pink - Ghost)
-      ctx.beginPath();
-      ctx.strokeStyle = 'rgba(244, 114, 182, 0.4)'; // Pink-400 low opacity
-      ctx.lineWidth = 3;
-      for (let x = 0; x < width; x++) {
-        const y = centerY + values.wave1Amp * Math.sin(x * 0.02 + t);
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      // Calculation constants
+      // Wave 1 moves Right: (kx - wt)
+      // Wave 2 moves Left:  (kx + wt)
+      // k is proportional to freq for visual consistency here
+      const kA = freqA * 0.1;
+      const kB = freqB * 0.1;
+      const wA = freqA * 0.2;
+      const wB = freqB * 0.2;
+
+      // --- DRAW COMPONENT WAVES (Ghost Mode) ---
+      if (showComponents) {
+        ctx.lineWidth = 2;
+        
+        // Wave A (Red)
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; // Red-500 low opacity
+        ctx.beginPath();
+        for(let x=0; x<width; x+=4) {
+          const y = centerY + ampA * Math.sin(kA * x - wA * t);
+          if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+
+        // Wave B (Blue)
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)'; // Blue-500 low opacity
+        ctx.beginPath();
+        for(let x=0; x<width; x+=4) {
+          const y = centerY + ampB * Math.sin(kB * x + wB * t);
+          if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
 
-      // Draw Wave 2 (Blue - Ghost)
-      ctx.beginPath();
-      ctx.strokeStyle = 'rgba(96, 165, 250, 0.4)'; // Blue-400 low opacity
-      ctx.lineWidth = 3;
-      const phaseRad = (values.phaseShift * Math.PI) / 180;
-      for (let x = 0; x < width; x++) {
-        // Wave 2 is shifted by phaseShift
-        const y = centerY + values.wave2Amp * Math.sin(x * 0.02 + t + phaseRad);
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-
-      // Draw RESULT (Green - Solid)
-      // This is the Principle of Superposition: y_total = y1 + y2
-      ctx.beginPath();
-      ctx.strokeStyle = '#4ade80'; // Green-400
-      ctx.lineWidth = 5;
-      ctx.shadowColor = 'rgba(74, 222, 128, 0.5)';
-      ctx.shadowBlur = 15;
+      // --- DRAW RESULTANT WAVE (The Sum) ---
+      // y_total = y1 + y2
+      ctx.lineWidth = 4;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
       
-      let maxTotalAmp = 0;
+      // Gradient stroke for cool factor
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      gradient.addColorStop(0, '#a855f7'); // Purple start
+      gradient.addColorStop(0.5, '#f472b6'); // Pink mid
+      gradient.addColorStop(1, '#a855f7'); // Purple end
+      
+      ctx.strokeStyle = gradient;
+      ctx.shadowColor = '#d946ef';
+      ctx.shadowBlur = 15;
 
-      for (let x = 0; x < width; x++) {
-        const y1 = values.wave1Amp * Math.sin(x * 0.02 + t);
-        const y2 = values.wave2Amp * Math.sin(x * 0.02 + t + phaseRad);
-        const yTotal = centerY + (y1 + y2); // Just adding them up!
+      ctx.beginPath();
+      for (let x = 0; x < width; x+=2) {
+        const y1 = ampA * Math.sin(kA * x - wA * t);
+        const y2 = ampB * Math.sin(kB * x + wB * t);
+        const yTotal = centerY + (y1 + y2);
         
         if (x === 0) ctx.moveTo(x, yTotal);
         else ctx.lineTo(x, yTotal);
-
-        if (Math.abs(y1 + y2) > maxTotalAmp) maxTotalAmp = Math.abs(y1 + y2);
       }
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // Draw Label
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 16px monospace';
-      ctx.textAlign = 'center';
-      let statusText = "Calculating...";
-      
-      if (maxTotalAmp < 5) statusText = "DESTRUCTIVE INTERFERENCE (Silence)";
-      else if (maxTotalAmp > 150) statusText = "CONSTRUCTIVE INTERFERENCE (Loud!)";
-      else statusText = "Mixed Signal";
-
-      ctx.fillText(statusText, width / 2, height - 30);
+      // --- DRAW INTERFERENCE ZONES ---
+      // Highlight areas of massive Constructive Interference
+      // We check a few points to draw "sparks"
+      // (Visual candy only, not strict physics calculation for every pixel)
+      if (Math.random() > 0.90) {
+        const randomX = Math.random() * width;
+        const y1 = ampA * Math.sin(kA * randomX - wA * t);
+        const y2 = ampB * Math.sin(kB * randomX + wB * t);
+        // If both are large and same sign (constructive)
+        if (Math.abs(y1 + y2) > (ampA + ampB) * 0.9 && (ampA+ampB) > 50) {
+           ctx.fillStyle = '#fff';
+           ctx.beginPath();
+           ctx.arc(randomX, centerY + y1 + y2, 3, 0, Math.PI*2);
+           ctx.fill();
+        }
+      }
 
       requestRef.current = requestAnimationFrame(animate);
     };
 
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current!);
-  }, [values]);
+  }, []); // Empty dependency array = Loop runs forever, reading from Ref
 
   return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// --- 4. Controls ---
-const SuperpositionControls = ({ values, setValue }: { values: SuperpositionState, setValue: (k: keyof SuperpositionState, v: any) => void }) => {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto items-center">
+// --- 4. Controls Component ---
+const renderControls = ({ values, setValue }: { 
+  values: SuperpositionState; 
+  setValue: (k: keyof SuperpositionState, v: any) => void;
+}) => (
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+
+    {/* LEFT DECK: Wave A (Red) */}
+    <div className="bg-red-950/20 p-4 rounded-xl border border-red-900/50 space-y-4">
+      <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-widest text-xs border-b border-red-900/50 pb-2">
+         <FaWaveSquare /> WAVE A (Right)
+      </div>
       
-      {/* Wave 1 Controls */}
-      <div className="space-y-6 p-6 bg-pink-500/5 rounded-2xl border border-pink-500/20">
-        <h3 className="text-pink-400 font-bold uppercase tracking-widest flex items-center gap-2">
-            <FaGhost /> Ghost Wave 1
-        </h3>
-        
-        <div className="space-y-2 group">
-            <div className="flex justify-between text-xs text-zinc-400 font-mono">
-                <span>Amplitude</span>
-                <span>{values.wave1Amp.toFixed(0)}</span>
-            </div>
-            <input 
-                type="range" min="-100" max="100" step="1"
-                value={values.wave1Amp}
-                onChange={(e) => setValue('wave1Amp', parseFloat(e.target.value))}
-                className="glow-range !accent-pink-500"
-            />
+      {/* Amp A */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-[10px] text-red-300">
+           <span>Amplitude</span>
+           <span>{values.ampA.toFixed(0)}</span>
         </div>
+        <input 
+          type="range" min="0" max="100" step="1"
+          value={values.ampA}
+          onChange={(e) => setValue('ampA', parseFloat(e.target.value))}
+          className="w-full h-1 bg-red-900/30 rounded-lg appearance-none cursor-pointer accent-red-500 hover:accent-red-400"
+        />
       </div>
 
-      {/* Wave 2 Controls */}
-      <div className="space-y-6 p-6 bg-blue-500/5 rounded-2xl border border-blue-500/20">
-        <h3 className="text-blue-400 font-bold uppercase tracking-widest flex items-center gap-2">
-            <FaGhost /> Ghost Wave 2
-        </h3>
-        
-        <div className="space-y-2 group">
-            <div className="flex justify-between text-xs text-zinc-400 font-mono">
-                <span>Amplitude</span>
-                <span>{values.wave2Amp.toFixed(0)}</span>
-            </div>
-            <input 
-                type="range" min="-100" max="100" step="1"
-                value={values.wave2Amp}
-                onChange={(e) => setValue('wave2Amp', parseFloat(e.target.value))}
-                className="glow-range !accent-blue-500"
-            />
+      {/* Freq A */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-[10px] text-red-300">
+           <span>Frequency</span>
+           <span>{values.freqA.toFixed(1)} Hz</span>
         </div>
-
-        <div className="space-y-2 group">
-            <div className="flex justify-between text-xs text-zinc-400 font-mono">
-                <span>Phase Shift (Offset)</span>
-                <span>{values.phaseShift}°</span>
-            </div>
-            <input 
-                type="range" min="0" max="360" step="1"
-                value={values.phaseShift}
-                onChange={(e) => setValue('phaseShift', parseFloat(e.target.value))}
-                className="glow-range !accent-blue-500"
-            />
-        </div>
+        <input 
+          type="range" min="0.5" max="5.0" step="0.1"
+          value={values.freqA}
+          onChange={(e) => setValue('freqA', parseFloat(e.target.value))}
+          className="w-full h-1 bg-red-900/30 rounded-lg appearance-none cursor-pointer accent-red-500 hover:accent-red-400"
+        />
       </div>
-
-      {/* Global Controls */}
-      <div className="md:col-span-2 flex justify-center pt-4 border-t border-zinc-800">
-         <button
-            onClick={() => setValue('isRunning', !values.isRunning)}
-            className={`
-                px-8 py-3 rounded-full font-bold uppercase tracking-widest transition-all
-                ${values.isRunning 
-                    ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
-                    : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}
-            `}
-         >
-            {values.isRunning ? 'Pause Time' : 'Resume Time'}
-         </button>
-      </div>
-
     </div>
-  );
-};
+
+    {/* CENTER DECK: Master Controls */}
+    <div className="flex flex-col justify-between space-y-4">
+       {/* Visualizer Toggle */}
+       <button
+        onClick={() => setValue('showComponents', !values.showComponents)}
+        className={`
+          flex-1 flex items-center justify-center gap-2 rounded-xl border transition-all
+          ${values.showComponents 
+            ? 'bg-zinc-800 text-white border-zinc-600 shadow-lg' 
+            : 'bg-zinc-900 text-zinc-500 border-zinc-800 hover:bg-zinc-800'}
+        `}
+       >
+         <FaEye /> {values.showComponents ? 'HIDE SOURCES' : 'REVEAL SOURCES'}
+       </button>
+       
+       <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 text-center">
+          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-2">
+            Time Speed
+          </label>
+          <input 
+            type="range" min="0" max="3.0" step="0.1"
+            value={values.speed}
+            onChange={(e) => setValue('speed', parseFloat(e.target.value))}
+            className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
+          />
+       </div>
+    </div>
+
+    {/* RIGHT DECK: Wave B (Blue) */}
+    <div className="bg-blue-950/20 p-4 rounded-xl border border-blue-900/50 space-y-4">
+      <div className="flex items-center gap-2 text-blue-400 font-bold uppercase tracking-widest text-xs border-b border-blue-900/50 pb-2">
+         <FaWaveSquare /> WAVE B (Left)
+      </div>
+      
+      {/* Amp B */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-[10px] text-blue-300">
+           <span>Amplitude</span>
+           <span>{values.ampB.toFixed(0)}</span>
+        </div>
+        <input 
+          type="range" min="0" max="100" step="1"
+          value={values.ampB}
+          onChange={(e) => setValue('ampB', parseFloat(e.target.value))}
+          className="w-full h-1 bg-blue-900/30 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400"
+        />
+      </div>
+
+      {/* Freq B */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-[10px] text-blue-300">
+           <span>Frequency</span>
+           <span>{values.freqB.toFixed(1)} Hz</span>
+        </div>
+        <input 
+          type="range" min="0.5" max="5.0" step="0.1"
+          value={values.freqB}
+          onChange={(e) => setValue('freqB', parseFloat(e.target.value))}
+          className="w-full h-1 bg-blue-900/30 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400"
+        />
+      </div>
+    </div>
+
+  </div>
+);
 
 // --- 5. Export ---
-
 export const SIMULATION_7 = {
-  title: 'The Ghost Crossing (Superposition)',
-  initialValues: { wave1Amp: 50, wave2Amp: 50, phaseShift: 0, isRunning: true },
+  title: 'Principle of Superposition',
+  initialValues: { 
+    ampA: 50, 
+    freqA: 1.0, 
+    ampB: 50, 
+    freqB: 1.0, 
+    speed: 1.0,
+    showComponents: true
+  },
   achievements: achievements,
-  renderSimulation: ({ values }: { values: SuperpositionState }) => <SuperpositionCanvas values={values} />,
-  renderControls: ({ values, setValue }: { values: SuperpositionState, setValue: (k: keyof SuperpositionState, v: any) => void }) => <SuperpositionControls values={values} setValue={setValue} />
+  renderSimulation: ({ values }: { values: SuperpositionState }) => (
+    <SuperpositionCanvas values={values} />
+  ),
+  renderControls: renderControls
 };

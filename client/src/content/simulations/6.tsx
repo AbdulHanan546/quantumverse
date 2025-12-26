@@ -1,62 +1,86 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { type Achievement } from '../../components/SimulationEngine';
+import { FaWeightHanging, FaBolt, FaExchangeAlt, FaRedo } from 'react-icons/fa';
 
-// 1. The "Rope Status" State
-interface WaveSpeedState {
-  tension: number;    // How hard we pull the rope (T)
-  thickness: number;  // How heavy/fat the rope is (μ)
-  wiggleSpeed: number; // The frequency of the hand shaking (f)
-  amplitude: number;  // How big the wiggles are
+// --- 1. Interface ---
+interface MediumState {
+  density1: number;   // Linear density of Left String (mu)
+  density2: number;   // Linear density of Right String (mu)
+  tension: number;    // Global Tension (T)
+  pulseWidth: number; // Sharpness of the pulse
 }
 
-// 2. Missions for the "Rope Master"
-const achievements: Achievement<WaveSpeedState>[] = [
+// --- 2. Achievements ---
+const achievements: Achievement<MediumState>[] = [
   {
-    id: 'violin-string',
-    title: 'The Violin String',
-    description: 'Pull it tight (Tension > 18) and make it thin (Thickness < 2). Super fast vibes!',
-    condition: (s) => s.tension > 18 && s.thickness < 2
+    id: 'invisible-seam',
+    title: 'Phantom Knot',
+    description: 'Make both strings exactly the same density. The wave passes through without reflecting.',
+    condition: (s) => Math.abs(s.density1 - s.density2) < 0.1
   },
   {
-    id: 'anchor-chain',
-    title: 'The Anchor Chain',
-    description: 'Low tension (T < 3) and max thickness. It moves like it just woke up.',
-    condition: (s) => s.tension < 3 && s.thickness > 9
+    id: 'brick-wall',
+    title: 'The Brick Wall',
+    description: 'Set Medium 2 to Max Density (Concrete) and Medium 1 to Min (Thread). Huge inverted reflection!',
+    condition: (s) => s.density2 >= 9.0 && s.density1 <= 1.5
   },
   {
-    id: 'speed-demon',
-    title: 'Speed Demon',
-    description: 'Reach a calculated wave speed of more than 4.0 units.',
-    condition: (s) => Math.sqrt(s.tension / s.thickness) > 4.0
+    id: 'free-end',
+    title: 'The Whip Crack',
+    description: 'Heavy string into Light string. The wave speeds up and does NOT invert!',
+    condition: (s) => s.density1 >= 8.0 && s.density2 <= 2.0
   },
   {
-    id: 'the-slug',
-    title: 'The Slug',
-    description: 'Reach a wave speed slower than 0.5 units.',
-    condition: (s) => Math.sqrt(s.tension / s.thickness) < 0.5
-  },
-  {
-    id: 'rhythmic-gymnast',
-    title: 'Rhythmic Gymnast',
-    description: 'Set the Wiggle Speed to max. Look at those ripples go!',
-    condition: (s) => s.wiggleSpeed >= 9.5
-  },
-  {
-    id: 'ghost-rope',
-    title: 'The Ghost Rope',
-    description: 'Make the rope as thin as possible.',
-    condition: (s) => s.thickness <= 1.0
+    id: 'high-tension',
+    title: 'Fiber Optic',
+    description: 'Max out the Tension. Speed is life.',
+    condition: (s) => s.tension >= 4.5
   }
 ];
 
-// 3. The Visualizer: A traveling wave on a rope
-const RopeCanvas = ({ values }: { values: WaveSpeedState }) => {
+// --- 3. Canvas Component ---
+const MediumCanvas = ({ values }: { values: MediumState }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
-  const offsetRef = useRef<number>(0);
-  const valuesRef = useRef(values);
+  
+  // Simulation Constants
+  const RESOLUTION = 150; // More points for smoother transition
+  const BOUNDARY = Math.floor(RESOLUTION / 2); // The knot is in the middle
+  
+  // Physics Arrays
+  const currentRef = useRef<Float32Array>(new Float32Array(RESOLUTION).fill(0));
+  const prevRef = useRef<Float32Array>(new Float32Array(RESOLUTION).fill(0));
+  const speedMapRef = useRef<Float32Array>(new Float32Array(RESOLUTION).fill(0));
 
-  useEffect(() => { valuesRef.current = values; }, [values]);
+  // Pulse Helper
+  const spawnPulse = useCallback(() => {
+    // Spawn at index 10 (Left side)
+    const startIdx = 15;
+    const width = values.pulseWidth;
+    for (let i = -width; i <= width; i++) {
+      const idx = startIdx + i;
+      if (idx > 0 && idx < RESOLUTION) {
+        // Gaussian pulse
+        const val = 80 * Math.exp(-(i*i)/(2*(width/2)*(width/2))); // Amplitude 80
+        currentRef.current[idx] += val;
+        prevRef.current[idx] += val; // Initial velocity 0
+      }
+    }
+  }, [values.pulseWidth]);
+
+  // Reset
+  const resetString = useCallback(() => {
+    currentRef.current.fill(0);
+    prevRef.current.fill(0);
+  }, []);
+
+  // Expose triggers to window for buttons (Hack for this architecture)
+  useEffect(() => {
+    // @ts-ignore
+    window.spawnMediumPulse = spawnPulse;
+    // @ts-ignore
+    window.resetMedium = resetString;
+  }, [spawnPulse, resetString]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -67,6 +91,7 @@ const RopeCanvas = ({ values }: { values: WaveSpeedState }) => {
     let width = 0, height = 0;
 
     const animate = () => {
+      // Resize
       const parent = canvas.parentElement;
       if (parent && (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight)) {
         width = parent.clientWidth;
@@ -75,161 +100,225 @@ const RopeCanvas = ({ values }: { values: WaveSpeedState }) => {
         canvas.height = height;
       }
 
-      const { tension, thickness, wiggleSpeed, amplitude } = valuesRef.current;
+      // --- PHYSICS UPDATE ---
       
-      // The Physics: v = sqrt(T / mu)
-      const velocity = Math.sqrt(tension / thickness);
-      
-      // Move the wave forward based on velocity
-      offsetRef.current += velocity * 0.1;
+      // 1. Build the Speed Map (c^2)
+      // v = sqrt(T / mu) -> c^2 = T / mu
+      // We precompute this because it changes abruptly at the boundary
+      const c2_1 = values.tension / values.density1;
+      const c2_2 = values.tension / values.density2;
 
-      // --- Drawing ---
+      // Smooth the transition slightly to avoid numerical explosion at the sharp step
+      for(let i=0; i<RESOLUTION; i++) {
+        if (i < BOUNDARY) speedMapRef.current[i] = c2_1;
+        else speedMapRef.current[i] = c2_2;
+      }
+      
+      // 2. Wave Equation Solver
+      const u = currentRef.current;
+      const uPrev = prevRef.current;
+      const nextU = new Float32Array(RESOLUTION);
+      const cMap = speedMapRef.current;
+
+      // Damping factor to prevent infinite energy buildup
+      const damp = 0.995; 
+
+      for (let i = 1; i < RESOLUTION - 1; i++) {
+        // Standard Finite Difference
+        const laplacian = u[i+1] - 2*u[i] + u[i-1];
+        
+        // Courant stability check roughly (c^2 must be < 1.0)
+        // Our sliders limit T and mu to keep this safe-ish.
+        
+        let val = (2 * u[i]) - uPrev[i] + (cMap[i] * laplacian);
+        val *= damp; 
+        nextU[i] = val;
+      }
+      
+      // Fixed ends
+      nextU[0] = 0;
+      nextU[RESOLUTION-1] = 0;
+
+      // Swap
+      prevRef.current.set(u);
+      currentRef.current.set(nextU);
+
+      // --- RENDER ---
       ctx.fillStyle = '#09090b';
       ctx.fillRect(0, 0, width, height);
 
-      const cy = height / 2;
+      const centerY = height / 2;
+      const segWidth = width / RESOLUTION;
 
-      // Draw horizontal reference line
-      ctx.strokeStyle = '#18181b';
-      ctx.lineWidth = 1;
+      // Draw The "Knot" (Boundary Line)
+      const boundaryX = BOUNDARY * segWidth;
+      ctx.strokeStyle = '#3f3f46';
+      ctx.setLineDash([5, 5]);
       ctx.beginPath();
-      ctx.moveTo(0, cy); ctx.lineTo(width, cy);
+      ctx.moveTo(boundaryX, 0); ctx.lineTo(boundaryX, height);
       ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Label the mediums
+      ctx.font = 'bold 40px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#18181b'; // subtle background text
+      ctx.fillText("MEDIUM 1", boundaryX / 2, centerY);
+      ctx.fillText("MEDIUM 2", boundaryX + (boundaryX/2), centerY);
 
-      // Draw the Rope
-      ctx.beginPath();
-      // Tension affects color (Blue to Gold)
-      ctx.strokeStyle = `hsl(${200 - tension * 10}, 80%, 60%)`;
-      // Thickness affects line width
-      ctx.lineWidth = 1 + thickness;
-      ctx.lineCap = 'round';
+
+      // Draw String
       ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
 
-      const points = 100;
-      for (let i = 0; i <= points; i++) {
-        const x = (i / points) * width;
-        
-        /**
-         * Traveling Wave Formula: y = A * sin(k*x - omega*t)
-         * We simplify this to: y = A * sin( (frequency * x) - offset )
-         */
-        const wavelength = 0.02; // Fixed spatial frequency
-        const y = amplitude * Math.sin((x * wavelength * wiggleSpeed) - offsetRef.current);
-        
-        if (i === 0) ctx.moveTo(x, cy + y);
-        else ctx.lineTo(x, cy + y);
+      // We draw in two passes to show thickness difference
+      
+      // PASS 1: Left String
+      ctx.beginPath();
+      // Thickness visual based on density
+      ctx.lineWidth = 2 + (values.density1 * 1.5); 
+      ctx.strokeStyle = '#22d3ee'; // Cyan
+      ctx.shadowColor = '#22d3ee';
+      ctx.shadowBlur = 10;
+      
+      for (let i = 0; i <= BOUNDARY; i++) {
+        const x = i * segWidth;
+        const y = centerY - nextU[i];
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
       }
       ctx.stroke();
 
-      // Draw the "Shaker" hand
-      ctx.fillStyle = '#4ade80';
-      const handY = cy + amplitude * Math.sin(-offsetRef.current);
+      // PASS 2: Right String
       ctx.beginPath();
-      ctx.arc(10, handY, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Speedometer UI
-      ctx.fillStyle = '#4ade80';
-      ctx.font = 'bold 12px monospace';
-      ctx.fillText(`WAVE SPEED: ${velocity.toFixed(2)} km/h-ish`, 20, 30);
+      ctx.lineWidth = 2 + (values.density2 * 1.5);
+      ctx.strokeStyle = '#f472b6'; // Pink
+      ctx.shadowColor = '#f472b6';
       
-      const tensionPercent = (tension / 20) * 100;
-      ctx.fillStyle = '#71717a';
-      ctx.fillText(`TENSION: ${tensionPercent.toFixed(0)}%`, 20, 50);
+      for (let i = BOUNDARY; i < RESOLUTION; i++) {
+        const x = i * segWidth;
+        const y = centerY - nextU[i];
+        if (i===BOUNDARY) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Draw Knot Point
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(boundaryX, centerY - nextU[BOUNDARY], 4, 0, Math.PI*2);
+      ctx.fill();
 
       requestRef.current = requestAnimationFrame(animate);
     };
 
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current!);
-  }, []);
+  }, [values.tension, values.density1, values.density2]);
 
-  return <canvas ref={canvasRef} className="block w-full h-full cursor-crosshair" />;
+  return <canvas ref={canvasRef} className="block w-full h-full" />;
 };
 
-// 4. The Control Panel
-const renderControls = ({ values, setValue }: any) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+// --- 4. Controls Component ---
+const renderMediumControls = ({ values, setValue }: { 
+  values: MediumState; 
+  setValue: (k: keyof MediumState, v: any) => void;
+}) => (
+  <div className="flex flex-col gap-6 max-w-6xl mx-auto">
     
-    {/* Tension Slider */}
-    <div className="space-y-3 group">
-      <div className="flex justify-between items-end">
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-blue-400 transition-colors italic">Pull Tightness</label>
-        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-blue-400 font-bold">{values.tension.toFixed(1)}</span>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+      
+      {/* Left Medium Density */}
+      <div className="space-y-2 group p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
+        <div className="flex justify-between items-center mb-2">
+          <label className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">
+            Medium 1 Density
+          </label>
+          <FaWeightHanging className="text-cyan-500"/>
         </div>
+        <input 
+          type="range" min="1" max="10" step="0.5"
+          value={values.density1}
+          onChange={(e) => setValue('density1', parseFloat(e.target.value))}
+          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400"
+        />
+        <div className="text-right text-xs font-mono text-zinc-500">{values.density1.toFixed(1)} kg/m</div>
       </div>
-      <input 
-        type="range" min="1" max="20" step="0.5"
-        value={values.tension}
-        onChange={(e) => setValue('tension', parseFloat(e.target.value))}
-        className="glow-range-blue"
-      />
+
+      {/* Global Tension */}
+      <div className="space-y-2 group p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
+        <div className="flex justify-between items-center mb-2">
+          <label className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">
+            Rope Tension
+          </label>
+          <FaBolt className="text-yellow-500"/>
+        </div>
+        <input 
+          type="range" min="1.0" max="5.0" step="0.1"
+          value={values.tension}
+          onChange={(e) => setValue('tension', parseFloat(e.target.value))}
+          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-yellow-500 hover:accent-yellow-400"
+        />
+        <div className="text-right text-xs font-mono text-zinc-500">{values.tension.toFixed(1)} N</div>
+      </div>
+
+      {/* Right Medium Density */}
+      <div className="space-y-2 group p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
+        <div className="flex justify-between items-center mb-2">
+          <label className="text-[10px] font-bold text-pink-400 uppercase tracking-widest">
+            Medium 2 Density
+          </label>
+          <FaWeightHanging className="text-pink-500"/>
+        </div>
+        <input 
+          type="range" min="1" max="10" step="0.5"
+          value={values.density2}
+          onChange={(e) => setValue('density2', parseFloat(e.target.value))}
+          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-pink-500 hover:accent-pink-400"
+        />
+        <div className="text-right text-xs font-mono text-zinc-500">{values.density2.toFixed(1)} kg/m</div>
+      </div>
+
     </div>
 
-    {/* Thickness Slider */}
-    <div className="space-y-3 group">
-      <div className="flex justify-between items-end">
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300 transition-colors italic">Rope Heaviness</label>
-        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-zinc-300 font-bold">{values.thickness.toFixed(1)}</span>
-        </div>
-      </div>
-      <input 
-        type="range" min="0.5" max="10" step="0.5"
-        value={values.thickness}
-        onChange={(e) => setValue('thickness', parseFloat(e.target.value))}
-        className="glow-range"
-      />
-    </div>
+    {/* Action Bar */}
+    <div className="flex justify-center gap-4 border-t border-zinc-800 pt-6">
+      <button
+        // @ts-ignore
+        onClick={() => window.spawnMediumPulse && window.spawnMediumPulse()}
+        className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg text-white font-bold shadow-lg hover:shadow-cyan-500/20 hover:scale-105 transition-all"
+      >
+        <FaExchangeAlt /> FIRE PULSE
+      </button>
 
-    {/* Wiggle Speed Slider */}
-    <div className="space-y-3 group">
-      <div className="flex justify-between items-end">
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-green-400 transition-colors italic">Wiggle Speed (f)</label>
-        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-green-400 font-bold">{values.wiggleSpeed.toFixed(1)}</span>
-        </div>
-      </div>
-      <input 
-        type="range" min="1" max="10" step="0.5"
-        value={values.wiggleSpeed}
-        onChange={(e) => setValue('wiggleSpeed', parseFloat(e.target.value))}
-        className="glow-range-green"
-      />
+      <button
+        // @ts-ignore
+        onClick={() => window.resetMedium && window.resetMedium()}
+        className="flex items-center gap-2 px-6 py-3 bg-zinc-800 text-zinc-400 rounded-lg font-bold hover:bg-zinc-700 hover:text-white transition-all"
+      >
+        <FaRedo /> Reset
+      </button>
     </div>
-
-    {/* Amplitude Slider */}
-    <div className="space-y-3 group">
-      <div className="flex justify-between items-end">
-        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest group-hover:text-yellow-400 transition-colors italic">Wave Height</label>
-        <div className="bg-zinc-800 px-2 py-1 rounded border border-zinc-700">
-            <span className="text-sm font-mono text-yellow-400 font-bold">{values.amplitude.toFixed(0)}</span>
-        </div>
-      </div>
-      <input 
-        type="range" min="0" max="80" step="5"
-        value={values.amplitude}
-        onChange={(e) => setValue('amplitude', parseFloat(e.target.value))}
-        className="glow-range-yellow"
-      />
+    
+    <div className="text-center text-[10px] text-zinc-600 font-mono mt-2">
+      v = √(Tension / Density) • Higher Density = Slower Wave
     </div>
 
   </div>
 );
 
-// 5. Final Export Object
+// --- 5. Export ---
 export const SIMULATION_6 = {
-  title: 'The Shrug Line: Wave Speed Lab',
+  title: 'Wave Speed & The Medium',
   initialValues: { 
-    tension: 10, 
-    thickness: 4, 
-    wiggleSpeed: 5, 
-    amplitude: 40 
+    density1: 1.0, 
+    density2: 4.0, 
+    tension: 3.0,
+    pulseWidth: 6
   },
   achievements: achievements,
-  renderSimulation: ({ values }: { values: WaveSpeedState }) => (
-    <RopeCanvas values={values} />
+  renderSimulation: ({ values }: { values: MediumState }) => (
+    <MediumCanvas values={values} />
   ),
-  renderControls: renderControls
+  renderControls: renderMediumControls
 };
