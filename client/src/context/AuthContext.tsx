@@ -1,4 +1,4 @@
-import  React, {
+import React, {
   createContext,
   useCallback,
   useContext,
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const handlePostAuthNavigate = useCallback(
     (role: string) => {
-      if (role === 'admin') navigate('/admin', { replace: true });
+      if (role === 'admin') navigate('/admin/dashboard', { replace: true });
       else navigate('/student', { replace: true });
     },
     [navigate]

@@ -4,10 +4,10 @@ import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
 // import { getAllChapterAggregates } from "../../api/chapterProgress"; // Removed
 import GenerateModal from "../../components/GenerateModal";
-import { 
-  BookOpen, 
-  Atom, 
-  Waves, 
+import {
+  BookOpen,
+  Atom,
+  Waves,
   Zap,
   ArrowRight,
   User2,
@@ -34,11 +34,11 @@ interface Chapter {
 }
 
 // --- Configuration Data ---
-const UNIT_CONFIG: Record<string, { 
-  icon: React.ReactNode; 
-  title: string; 
-  description: string; 
-  image: string; 
+const UNIT_CONFIG: Record<string, {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  image: string;
   color: string;
 }> = {
   "Waves": {
@@ -74,7 +74,7 @@ const UNIT_ID_MAP: Record<number, string> = {
 const UNITS = Object.keys(UNIT_CONFIG);
 
 export default function StudentHome() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -131,27 +131,31 @@ export default function StudentHome() {
     // Assuming routing still works with ID
     navigate(`/chapter/${chapter.documentId}`);
   };
-  
+
   return (
     <div className="relative min-h-screen pb-32 bg-black">
-      
+
       {/* --- HERO SECTION (Unchanged) --- */}
       <div className="relative w-full aspect-[21/9] min-h-[400px] overflow-hidden group">
-      <div className="flex gap-8 items-center absolute z-50 top-8 right-8 tracking-widest font-light font-heading">
-        <Link to="/profile" className="flex gap-2 items-center tracking-widest font-light font-heading hover:text-green-500">
-          <User2 />
-          <span>CHECK PROFILE</span>
-        </Link>
-        <Link to="/leaderboards" className="flex gap-2 items-center tracking-widest font-light font-heading hover:text-cyan-500">
-          <BarChart2 />
-          <span>CHECK LEADERBOARDS</span>
-        </Link>
-      </div>
+        <div className="flex gap-8 items-center absolute z-50 top-8 right-8 tracking-widest font-light font-heading">
+          <Link to="/profile" className="flex gap-2 items-center tracking-widest font-light font-heading hover:text-green-500">
+            <User2 />
+            <span>CHECK PROFILE</span>
+          </Link>
+          <Link to="/leaderboards" className="flex gap-2 items-center tracking-widest font-light font-heading hover:text-cyan-500">
+            <BarChart2 />
+            <span>CHECK LEADERBOARDS</span>
+          </Link>
+          <button onClick={logout} className="flex gap-2 items-center tracking-widest font-light font-heading hover:text-red-500">
+            <Zap className="rotate-180 text-red-500" />
+            <span>LOGOUT</span>
+          </button>
+        </div>
         <div className="absolute inset-0">
-          <img 
-            src={currentConfig.image} 
+          <img
+            src={currentConfig.image}
             alt={currentConfig.title}
-            className="w-full h-full object-cover opacity-80 transition-transform duration-1000 transform group-hover:scale-105" 
+            className="w-full h-full object-cover opacity-80 transition-transform duration-1000 transform group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent" />
@@ -159,30 +163,30 @@ export default function StudentHome() {
 
         <div className="absolute inset-0 flex items-center">
           <div className="mx-auto max-w-5xl w-full px-6 pt-20 md:pt-0">
-             <div className="max-w-2xl space-y-6 animate-fadeInUp">
-                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-xs font-semibold uppercase tracking-wider ${currentConfig.color}`}>
-                   {currentConfig.icon}
-                   {currentUnit} Unit
-                </div>
-                <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.1] drop-shadow-2xl">
-                  {currentConfig.title.split(": ")[0]}
-                  <span className={`block text-2xl md:text-4xl mt-2 font-medium opacity-90 ${currentConfig.color}`}>
-                    {currentConfig.title.split(": ")[1]}
-                  </span>
-                </h1>
-                <p className="text-lg text-slate-300 leading-relaxed font-light border-l-4 border-white/20 pl-4">
-                  {currentConfig.description}
-                </p>
-                <div className="pt-4">
-                   <button 
-                     onClick={() => setModalOpen(true)}
-                     className="flex items-center gap-2 px-6 py-3 bg-white text-black rounded-full font-bold hover:bg-slate-200 transition active:scale-95"
-                   >
-                     <Zap className="w-4 h-4" />
-                     Generate Study Slides
-                   </button>
-                </div>
-             </div>
+            <div className="max-w-2xl space-y-6 animate-fadeInUp">
+              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-xs font-semibold uppercase tracking-wider ${currentConfig.color}`}>
+                {currentConfig.icon}
+                {currentUnit} Unit
+              </div>
+              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.1] drop-shadow-2xl">
+                {currentConfig.title.split(": ")[0]}
+                <span className={`block text-2xl md:text-4xl mt-2 font-medium opacity-90 ${currentConfig.color}`}>
+                  {currentConfig.title.split(": ")[1]}
+                </span>
+              </h1>
+              <p className="text-lg text-slate-300 leading-relaxed font-light border-l-4 border-white/20 pl-4">
+                {currentConfig.description}
+              </p>
+              <div className="pt-4">
+                <button
+                  onClick={() => setModalOpen(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-white text-black rounded-full font-bold hover:bg-slate-200 transition active:scale-95"
+                >
+                  <Zap className="w-4 h-4" />
+                  Generate Study Slides
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -190,21 +194,21 @@ export default function StudentHome() {
       <main className="relative mx-auto max-w-5xl px-4 py-16 space-y-8">
         {/* --- Content Header --- */}
         <div className="flex items-end justify-between border-b border-gray-800 pb-4">
-           <div>
-             <h2 className="text-2xl font-bold text-white">Chapter Roadmap</h2>
-             <p className="text-slate-500 text-sm mt-1">
-               {filteredChapters.length} Chapters • {filteredChapters.reduce((acc, curr) => acc + curr.topics.length, 0)} Topics
-             </p>
-           </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white">Chapter Roadmap</h2>
+            <p className="text-slate-500 text-sm mt-1">
+              {filteredChapters.length} Chapters • {filteredChapters.reduce((acc, curr) => acc + curr.topics.length, 0)} Topics
+            </p>
+          </div>
         </div>
- 
+
         {/* --- Timeline Section --- */}
         <div className="relative pl-4 md:pl-0">
           {loading ? (
-             <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                <div className={`w-10 h-10 border-4 border-t-transparent rounded-full animate-spin ${currentConfig.color.replace('text', 'border')}`} />
-                <p className="text-slate-500 animate-pulse">Loading Quantum Data...</p>
-             </div>
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className={`w-10 h-10 border-4 border-t-transparent rounded-full animate-spin ${currentConfig.color.replace('text', 'border')}`} />
+              <p className="text-slate-500 animate-pulse">Loading Quantum Data...</p>
+            </div>
           ) : filteredChapters.length === 0 ? (
             <div className="text-center py-20 bg-gray-900/30 rounded-2xl border border-dashed border-gray-700">
               <p className="text-slate-400">No chapters found for {currentUnit}.</p>
@@ -212,17 +216,17 @@ export default function StudentHome() {
             </div>
           ) : (
             <div className="relative space-y-8">
-              
+
               {/* Vertical Timeline Line */}
               <div className="absolute left-[19px] top-4 bottom-8 w-0.5 bg-gradient-to-b from-gray-700 via-gray-800 to-transparent" />
 
               {filteredChapters.map((chapter, index) => {
-                
+
                 return (
                   <div key={chapter.id} className="relative pl-16 group">
-                    
+
                     {/* The Number Node (Always gray since no progress) */}
-                    <div 
+                    <div
                       className={`
                         absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full 
                         flex items-center justify-center z-10 border-4 border-black
@@ -234,7 +238,7 @@ export default function StudentHome() {
                     </div>
 
                     {/* The Card */}
-                    <div 
+                    <div
                       onClick={() => openChapter(chapter)}
                       className="
                         relative flex flex-col md:flex-row gap-6 p-5 
@@ -246,10 +250,10 @@ export default function StudentHome() {
                       {/* Thumbnail Image */}
                       <div className="w-full md:w-48 shrink-0 aspect-video md:aspect-[3/1] rounded-lg overflow-hidden relative bg-black">
                         {chapter.thumbnail ? (
-                          <img 
+                          <img
                             // Assuming images are in public/assets or similar. Adjust path as needed.
-                            src={`/chapter-thumbnails/${chapter.thumbnail}`} 
-                            alt={chapter.name} 
+                            src={`/chapter-thumbnails/${chapter.thumbnail}`}
+                            alt={chapter.name}
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-80 group-hover:opacity-100"
                           />
                         ) : (
@@ -257,10 +261,10 @@ export default function StudentHome() {
                             <BookOpen className="w-8 h-8 opacity-50" />
                           </div>
                         )}
-                        
-                         <div className="absolute bottom-1 right-1 bg-black/80 text-[10px] text-white px-1.5 py-0.5 rounded font-mono border border-white/10">
-                           {chapter.topics.length} TOPICS
-                         </div>
+
+                        <div className="absolute bottom-1 right-1 bg-black/80 text-[10px] text-white px-1.5 py-0.5 rounded font-mono border border-white/10">
+                          {chapter.topics.length} TOPICS
+                        </div>
                       </div>
 
                       {/* Content Area */}
@@ -271,7 +275,7 @@ export default function StudentHome() {
                           </h3>
                           <ArrowRight className="w-5 h-5 text-slate-500 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" />
                         </div>
-                        
+
                         <p className="text-sm text-slate-400 mt-2 line-clamp-2 leading-relaxed h-[2.5rem]">
                           {chapter.description || "Dive into this chapter to master the fundamental concepts."}
                         </p>
@@ -284,7 +288,7 @@ export default function StudentHome() {
                               <span className="text-xs text-slate-400 font-medium">Readings Available</span>
                             </div>
                           </div>
-                          
+
                           <span className="text-xs text-slate-600 font-mono group-hover:text-blue-400 transition-colors">
                             START CHAPTER
                           </span>

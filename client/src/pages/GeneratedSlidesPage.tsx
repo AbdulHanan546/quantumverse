@@ -6,9 +6,11 @@ import adaptGeneratedSlides from '../utils/adaptGeneratedSlides';
 export default function GeneratedSlidesPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as { components?: any[]; isGenerated?: boolean } | null;
+  const state = location.state as { components?: any[]; isGenerated?: boolean; topicTitle?: string } | null;
 
   const rawSlides = state?.components ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _title = state?.topicTitle;
   const slides = adaptGeneratedSlides(rawSlides);
 
   if (!slides || slides.length === 0) {
@@ -21,5 +23,11 @@ export default function GeneratedSlidesPage() {
     );
   }
 
-  return <TopicRenderer slides={slides} />;
+  return (
+    <TopicRenderer
+      slides={slides}
+      onComplete={() => navigate('/student')}
+      title={state?.topicTitle || "Generated Topic"}
+    />
+  );
 }

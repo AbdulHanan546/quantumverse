@@ -6,11 +6,16 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     return this.authService.registerStudent(dto);
+  }
+
+  @Post('admin/register')
+  async registerAdmin(@Body() dto: RegisterDto) {
+    return this.authService.registerAdmin(dto);
   }
 
   @Post('login')

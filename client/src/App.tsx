@@ -18,6 +18,10 @@ import { Simulations } from "./components/Simulations";
 import { TopicFlow } from "./components/TopicFlow";
 import Leaderboard from "./components/Leaderboards";
 import { TestTopic } from "./components/TestTopic";
+import AdminSignUp from "./pages/admin/AdminSignUp";
+import AdminSignIn from "./pages/admin/AdminSignIn";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUserDetail from "./pages/admin/AdminUserDetail";
 
 function AppWrapper() {
   const [topicData, setTopicData] = useState<any | null>(null);
@@ -29,30 +33,6 @@ function AppWrapper() {
       console.log("My data", data);
     }; f();
   })
-
-  const handleTopicSelect = async (documentId: string) => {
-    try {
-      const data = await fetchTopic(documentId);
-      setTopicData(data);
-    } catch (err) {
-      console.error("Failed to load topic:", err);
-    }
-  };
-// function TopicRendererWrapper() {
-//   const location = useLocation();
-//   const state = location.state as { components?: any[] };
-
-//   if (state?.components?.length) {
-//     return <TopicRenderer components={state.components} />;
-//   }
-//   return (
-//     <div className="p-10 text-center text-slate-400">
-//       No topic loaded. Please go back and choose one.
-//     </div>
-//   );
-// }
-  // Hide Navbar for any topic route
-  // const hideNavbar = location.pathname.startsWith("/topic/") || location.pathname === '/';
 
   return (
     <div className="w-full min-h-screen bg-black text-white">
@@ -101,6 +81,27 @@ function AppWrapper() {
 
         {/* Default Routes */}
         <Route path="/" element={<LandingPage />} />
+
+        {/* Admin Routes */}
+        <Route path="/admin/signup" element={<AdminSignUp />} />
+        <Route path="/admin/signin" element={<AdminSignIn />} />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminUserDetail />
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="/test/:mode/:number" element={<TestTopic />} />
         {/* <Route path="/slides" element={<TopicRenderer components={comptonEffectTopic} />} /> */}
         <Route path="/simulations" element={<Simulations />} />

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, UseGuards, Delete, Patch, Body } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from './user.entity';
@@ -8,7 +8,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @Get()
   @Roles(UserRole.ADMIN)
@@ -20,7 +20,19 @@ export class UsersController {
   @Get(':id')
   @Roles(UserRole.ADMIN)
   async getById(@Param('id', ParseIntPipe) id: number) {
-    const user = await this.usersService.findById(id);
-    return this.usersService.sanitize(user);
+    // Return stats directly (already sanitized inside service method)
+    return this.usersService.findByIdWithStats(id);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  async deleteUser(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.deleteUser(id);
+  }
+
+  @Patch(':id')
+  @Roles(UserRole.ADMIN)
+  async updateUser(@Param('id', ParseIntPipe) id: number, @Body() body: { role?: UserRole }) {
+    return this.usersService.updateUser(id, body);
   }
 }

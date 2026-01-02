@@ -39,6 +39,22 @@ export class AuthService implements OnModuleInit {
         }
     }
 
+    async registerAdmin(dto: RegisterDto) {
+        try {
+            const user = await this.usersService.createUser({
+                email: dto.email,
+                password: dto.password,
+                role: UserRole.ADMIN,
+            });
+            return this.issueTokenAndReturnUser(user);
+        } catch (e) {
+            if (e?.status === 409) {
+                throw new ConflictException('Email already registered');
+            }
+            throw e;
+        }
+    }
+
     async login(dto: LoginDto) {
         const user = await this.usersService.findByEmail(dto.email);
         if (!user) throw new UnauthorizedException('Invalid credentials');
