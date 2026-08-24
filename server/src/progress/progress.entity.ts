@@ -44,6 +44,6 @@ export class Progress {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   completedAt: Date | null;
 }

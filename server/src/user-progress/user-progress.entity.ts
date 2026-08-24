@@ -38,7 +38,7 @@ export class UserProgress {
   topicId: string;
 
   // Stores the massive JSON blob of stats
-  @Column({ type: 'jsonb', default: {} })
+  @Column({ type: 'json', default: {} })
   progressData: ProgressDetails;
 
   @ManyToOne(() => User, (user) => user.id, { onDelete: 'CASCADE' })

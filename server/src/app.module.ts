@@ -13,18 +13,22 @@ import { UserProgressModule } from './user-progress/user-progress.module';
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        url: config.get<string>('DATABASE_URL'),
-        autoLoadEntities: true,
-        synchronize: config.get<string>('DB_SYNC') === 'true',
-
-        ssl: {
-          rejectUnauthorized: false, // required for Neon
-        },
-
-        retryAttempts: 3,
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('DATABASE_URL') || '';
+        const isMysql = url.startsWith('mysql://') || url.startsWith('mysql2://');
+        return {
+          type: isMysql ? 'mysql' : 'postgres',
+          url,
+          autoLoadEntities: true,
+          synchronize: config.get<string>('DB_SYNC') === 'true',
+          ...(!isMysql ? {
+            ssl: {
+              rejectUnauthorized: false, // required for Neon
+            }
+          } : {}),
+          retryAttempts: 3,
+        };
+      },
     }),
 
     UsersModule,
