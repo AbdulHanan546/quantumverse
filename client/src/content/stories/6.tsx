@@ -172,6 +172,11 @@ export const SCRIPT_6: StoryStep[] = [
   {
     speaker: "Newton",
     text: "Fine. So to go fast, you need a very tight, very light string. Like a violin string!",
+    mathTitle: "Conclusion",
+    mathSub: "The medium defines the speed.",
+    draw: drawTheFormula
+  },
+  {
     speaker: "Hooke",
     text: "And to go slow, you need a loose, heavy anchor chain. Simple.",
     mathTitle: "Conclusion",
