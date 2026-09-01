@@ -14,7 +14,12 @@ import { UserProgressModule } from './user-progress/user-progress.module';
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const url = config.get<string>('DATABASE_URL') || '';
+        const url = config.get<string>('DATABASE_URL')?.trim();
+        if (!url) {
+          throw new Error(
+            'FATAL: DATABASE_URL environment variable is missing or empty! Please add DATABASE_URL in Render Dashboard -> Environment Variables.',
+          );
+        }
         const isMysql = url.startsWith('mysql://') || url.startsWith('mysql2://');
         return {
           type: isMysql ? 'mysql' : 'postgres',
