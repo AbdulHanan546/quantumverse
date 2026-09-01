@@ -1,4 +1,4 @@
-﻿import {
+import {
     Injectable,
     InternalServerErrorException,
     BadRequestException
@@ -445,31 +445,145 @@ async function generateSlidesForTopic(topic: string, geminiApiKey:  string, hint
     return slides;
 }
 
-@Injectable()
-export class GenerationService {
-    private readonly geminiApiKey: string
-    constructor() {
-        this.geminiApiKey = process.env.GEMINI_API_KEY || ''
+export interface OpenAIOptions {
+    model?: string;
+    temperature?: number;
+}
+
+async function callOpenAIRaw(topic: string, hints: string | undefined, openaiApiKey: string, opts: OpenAIOptions = {}) {
+    if (!openaiApiKey) throw new Error('OPENAI_API_KEY');
+    const model = opts.model || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const url = 'https://api.openai.com/v1/chat/completions';
+    const body = {
+        model,
+        messages: [
+            {
+                role: 'system',
+                content: buildSystemPrompt(),
+            },
+            {
+                role: 'user',
+                content: buildUserPrompt(topic, hints),
+            },
+        ],
+        temperature: opts.temperature ?? 0.5,
+    };
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiApiKey}`,
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`OpenAI API error: ${res.status} ${t}`);
     }
 
-    async generateSlides(userId: number, prompt: string, hints ? : string) {
+    const json: any = await res.json();
+    const text = json?.choices?.[0]?.message?.content || '';
+    return {
+        raw: json,
+        text,
+    };
+}
+
+async function generateSlidesForTopicOpenAI(topic: string, openaiApiKey: string, hints?: string, opts: OpenAIOptions = {}): Promise<SlideData[]> {
+    const { text } = await callOpenAIRaw(topic, hints, openaiApiKey, opts);
+    let parsed: any[] = [];
+
+    // Try to extract JSON from the backup markers
+    const jsonStartMarker = '/* SLIDES_JSON_START */';
+    const jsonEndMarker = '/* SLIDES_JSON_END */';
+    const startIdx = text.indexOf(jsonStartMarker);
+    const endIdx = text.indexOf(jsonEndMarker);
+
+    if (startIdx !== -1 && endIdx !== -1) {
+        const jsonText = text.substring(startIdx + jsonStartMarker.length, endIdx).trim();
         try {
-            if (!prompt || prompt.trim().length < 3) throw new BadRequestException('Prompt must be at least 3 characters')
-            if (!this.geminiApiKey) throw new InternalServerErrorException('Generation service is not configured')
-            const slides = await generateSlidesForTopic(prompt, this.geminiApiKey, hints, {
-                model: 'gemini-2.5-flash',
-            })
+            parsed = JSON.parse(jsonText);
+        } catch (e) {
+            console.error('Failed to parse JSON from markers:', e);
+        }
+    }
+
+    // Fallback strategies if marker extraction failed
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+        try {
+            const cleanText = text.replace(/```(?:json|javascript|typescript)?/gi, '').replace(/```/g, '').trim();
+            parsed = JSON.parse(cleanText);
+        } catch {
+            const arrayMatch = text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+            if (arrayMatch) {
+                try {
+                    parsed = JSON.parse(arrayMatch[0]);
+                } catch {
+                    const exportMatch = text.match(/export\s+const\s+SLIDES_\w+\s*=\s*(\[[\s\S]*?\]);?\s*(\? : \/\*|$)/);
+                    if (exportMatch) {
+                        try {
+                            const cleanedArray = exportMatch[1]
+                                .replace(/run:\s*\w+/g, 'run: null')
+                                .replace(/,(\s*[}\]])/g, '$1');
+                            parsed = eval(`(${cleanedArray})`);
+                        } catch {
+                            parsed = [];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    const slides = sanitizeSlides(parsed);
+    console.log(`Generated ${slides.length} slides for topic "${topic}" using OpenAI (${opts.model || process.env.OPENAI_MODEL || 'gpt-4o-mini'})`);
+    return slides;
+}
+
+@Injectable()
+export class GenerationService {
+    private readonly openaiApiKey: string;
+    private readonly geminiApiKey: string;
+
+    constructor() {
+        this.openaiApiKey = process.env.OPENAI_API_KEY || '';
+        this.geminiApiKey = process.env.GEMINI_API_KEY || '';
+    }
+
+    async generateSlides(userId: number, prompt: string, hints?: string) {
+        try {
+            if (!prompt || prompt.trim().length < 3) throw new BadRequestException('Prompt must be at least 3 characters');
+            if (!this.openaiApiKey && !this.geminiApiKey) {
+                throw new InternalServerErrorException('AI generation service is not configured. Please set OPENAI_API_KEY or GEMINI_API_KEY.');
+            }
+
+            // Prioritize OpenAI if OPENAI_API_KEY is provided, otherwise fallback to Gemini
+            let slides: SlideData[];
+            if (this.openaiApiKey) {
+                slides = await generateSlidesForTopicOpenAI(prompt, this.openaiApiKey, hints);
+            } else {
+                slides = await generateSlidesForTopic(prompt, this.geminiApiKey, hints, {
+                    model: 'gemini-2.5-flash',
+                });
+            }
+
             return {
                 slides,
                 generatedAt: new Date().toISOString(),
                 prompt,
-                userId
-            }
+                userId,
+            };
         } catch (err: any) {
-            if (err.message?.includes('GEMINI_API_KEY')) throw new InternalServerErrorException('AI generation service not configured')
-            if (err.message?.includes('Gemini API error')) throw new InternalServerErrorException('AI generation failed')
-            if (err.getStatus?.() === 400) throw err
-            throw new InternalServerErrorException('Failed to generate slides')
+            if (err.message?.includes('OPENAI_API_KEY') || err.message?.includes('GEMINI_API_KEY')) {
+                throw new InternalServerErrorException('AI generation service not configured');
+            }
+            if (err.message?.includes('OpenAI API error') || err.message?.includes('Gemini API error')) {
+                throw new InternalServerErrorException(err.message);
+            }
+            if (err.getStatus?.() === 400) throw err;
+            throw new InternalServerErrorException('Failed to generate slides');
         }
     }
 }
